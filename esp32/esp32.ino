@@ -1,9 +1,18 @@
-cd do#include <WiFi.h>
+#define ENABLE_USER_AUTH
+#define ENABLE_DATABASE
+#include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <Preferences.h>
 #include <LittleFS.h>
 #include "routes.h"
+#include <FirebaseClient.h>
+#include <WiFiClientSecure.h>
 
+// FIREBASE OBJECTS
+WiFiClientSecure ssl_client;
+AsyncClientClass aClient(ssl_client);
+FirebaseApp app;
+RealtimeDatabase Database;
 
 // Global Variables
 Preferences preferences;
@@ -12,12 +21,16 @@ String currentSSID = "bardo";
 String currentWiFiPassword = "12345679";
 String currentAPSSID = "ESP32_001";
 String currentAPPassword = "men0lel1";
-String currentUsername = "admin";
-String currentPassword = "password";
 String wifiOptionsHTML = "";
+String currentFbUrl = "";
+String currentFbApiKey = "";
+String currentFbEmail = "";
+String currentFbPassword = "";
+bool shouldReboot = false;
+unsigned long rebootTime = 0;
 
-unsigned long lastScanTime = 0;                // Tracks the last scan time
-const unsigned long SCAN_INTERVAL_MS = 10000;  // Time between scans (10 seconds)
+const unsigned long SCAN_INTERVAL_MS = 10000;
+unsigned long lastScanTime = 0 - SCAN_INTERVAL_MS;
 
 void setup() {
   Serial.begin(115200);
@@ -29,12 +42,11 @@ void setup() {
   }
   Serial.println("LittleFS mounted successfully");
 
-  // --- ADD THIS DEBUGGING BLOCK ---
   File root = LittleFS.open("/");
   File file = root.openNextFile();
   Serial.println("--- Files currently in LittleFS ---");
   bool hasFiles = false;
-  while(file){
+  while (file) {
     Serial.print("FILE: /");
     Serial.println(file.name());
     hasFiles = true;
@@ -51,8 +63,10 @@ void setup() {
   currentWiFiPassword = preferences.getString("wifi_password", "12345679");
   currentAPSSID = preferences.getString("apssid", "ESP32_001");
   currentAPPassword = preferences.getString("ap_password", "men0lel1");
-  currentUsername = preferences.getString("username", "admin");
-  currentPassword = preferences.getString("password", "password");
+  currentFbUrl = preferences.getString("fb_url", "");
+  currentFbApiKey = preferences.getString("fb_api_key", "");
+  currentFbEmail = preferences.getString("fb_email", "");
+  currentFbPassword = preferences.getString("fb_password", "");
   preferences.end();
 
   // Initialize hardware components
@@ -74,6 +88,22 @@ void setup() {
     Serial.println(WiFi.localIP());
   } else {
     Serial.println("\nFailed to connect to WiFi");
+    WiFi.disconnect();
+  }
+
+  if (WiFi.status() == WL_CONNECTED && currentFbApiKey.length() > 0 && currentFbEmail.length() > 0) {
+    Serial.println("Initializing Firebase...");
+
+    ssl_client.setInsecure();
+
+    Serial.println("Initializing Firebase...");
+    UserAuth user_auth(currentFbApiKey, currentFbEmail, currentFbPassword);
+    initializeApp(aClient, app, getAuth(user_auth));
+
+    app.getApp<RealtimeDatabase>(Database);
+    Database.url(currentFbUrl); // Uncomment and use your DB URL variable here
+
+    Serial.println("Firebase App Initialized.");
   }
 
   // Configure Access Point
@@ -86,13 +116,6 @@ void setup() {
   server.begin();
   Serial.println("HTTP server started");
 
-  // Login credentials
-  Serial.println();
-  Serial.print("Username: ");
-  Serial.println(currentUsername);
-  Serial.print("Password: ");
-  Serial.println(currentPassword);
-
   // Access point credentials
   Serial.println();
   Serial.print("Access point: ");
@@ -102,11 +125,43 @@ void setup() {
 }
 
 void loop() {
-  unsigned long currentTime = millis();
-  if (currentTime - lastScanTime >= SCAN_INTERVAL_MS) {
-    lastScanTime = currentTime;
-    scanForWiFiNetworks();
-    cleanupExpiredSessions();
+  if (shouldReboot) {
+    if (millis() - rebootTime > 2000) {
+      Serial.println("Rebooting device to apply new settings...");
+      ESP.restart();
+    }
+    return;
   }
+
+  app.loop();
+
+  unsigned long currentTime = millis();
+  if (lastScanTime == 0 || currentTime - lastScanTime >= SCAN_INTERVAL_MS) {
+    lastScanTime = (currentTime == 0) ? 1 : currentTime; // Prevent staying 0
+    Serial.println("Starting background WiFi scan...");
+    WiFi.scanNetworks(true);  // 'true' makes it async
+  }
+
+  int n = WiFi.scanComplete();
+  
+  if (n >= 0) { // Scan successfully finished!
+    
+    String options = "";
+    if (n == 0) {
+      options = "<option value='Null'>No Networks Found</option>";
+    } else {
+      for (int i = 0; i < n; i++) {
+        options += "<option value='" + WiFi.SSID(i) + "'>" + WiFi.SSID(i) + " (" + String(WiFi.RSSI(i)) + "dB)</option>";
+      }
+    }
+    wifiOptionsHTML = options;
+    WiFi.scanDelete();  // Clear memory
+    
+  } else if (n == -2) { 
+    // -2 means WIFI_SCAN_FAILED. The radio was busy.
+    Serial.println("Scan failed (Radio might be busy). Retrying...");
+    lastScanTime = 0; // Force it to try again immediately on the next loop
+  }
+
   delay(10);
 }

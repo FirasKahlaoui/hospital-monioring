@@ -12,43 +12,35 @@ extern String currentWiFiPassword;
 extern String currentAPSSID;
 extern String currentAPPassword;
 extern String wifiOptionsHTML;
-extern String currentUsername;
-extern String currentPassword;
 extern AsyncWebServer server;
 extern Preferences preferences;
+extern String currentFbUrl;
+extern String currentFbApiKey;
+extern String currentFbEmail;
+extern String currentFbPassword;
+extern bool shouldReboot;
+extern unsigned long rebootTime;
 
 #define WIFI_ATTEMPTS 10
 #define WIFI_DELAY_MS 1000
 
-void scanForWiFiNetworks() {
-  String options = "";
-  int n = WiFi.scanNetworks();
-  if (n == 0) {
-    options = "<option value='Null'>No Networks Found</option>";
-  } else {
-    for (int i = 0; i < n; i++) {
-      options += "<option value='" + WiFi.SSID(i) + "'>" + WiFi.SSID(i) + " (" + String(WiFi.RSSI(i)) + "dB)</option>";
-    }
-  }
-  wifiOptionsHTML = options;
-  WiFi.scanDelete();
-}
-
 void handleSettings(AsyncWebServerRequest *request) {
-  if (!ensureLoggedIn(request)) return;
+  if (!isAPConnected(request)) return;
   // Serve the static HTML file
   request->send(LittleFS, "/settings.html", "text/html");
 }
 
-// NEW API ENDPOINT: Sends current config to settings.html via JSON
+// Sends current config to settings.html via JSON
 void handleGetSettingsData(AsyncWebServerRequest *request) {
-  if (!ensureLoggedIn(request)) return;
-  
+  if (!isAPConnected(request)) return;
+
   String json = "{";
-  json += "\"username\": \"" + currentUsername + "\",";
-  json += "\"wifiOptions\": \"" + wifiOptionsHTML + "\"";
+  json += "\"wifiOptions\": \"" + wifiOptionsHTML + "\",";
+  json += "\"fb_url\": \"" + currentFbUrl + "\",";
+  json += "\"fb_api_key\": \"" + currentFbApiKey + "\",";
+  json += "\"fb_email\": \"" + currentFbEmail + "\"";  // NO PASSWORD HERE
   json += "}";
-  
+
   request->send(200, "application/json", json);
 }
 
@@ -56,7 +48,7 @@ void handleUpdateSettings(AsyncWebServerRequest *request) {
   bool isUpdated = false;
   IPAddress clientIP = request->client()->remoteIP();
 
-  if (!ensureLoggedInAndAuthorized(request, "admin")) return;
+  if (!isAPConnected(request)) return;
 
   if (request->method() == HTTP_POST) {
     preferences.begin("settings", false);
@@ -88,7 +80,7 @@ void handleUpdateSettings(AsyncWebServerRequest *request) {
       String newAPSSID = request->getParam("apssid", true)->value();
       String newAPPassword = request->getParam("ap_password", true)->value();
 
-      if (newAPSSID.length() > 0 && newAPPassword.length() >= 8) { 
+      if (newAPSSID.length() > 0 && newAPPassword.length() >= 8) {
         preferences.putString("apssid", newAPSSID);
         preferences.putString("ap_password", newAPPassword);
         isUpdated = true;
@@ -97,20 +89,62 @@ void handleUpdateSettings(AsyncWebServerRequest *request) {
       }
     }
 
-    if (request->hasParam("username", true)) {
-      String newUsername = request->getParam("username", true)->value();
-      if (newUsername.length() != 0 && newUsername != currentUsername) {
-        currentUsername = newUsername;
-        preferences.putString("username", currentUsername);
+    else if (request->hasParam("apssid", true)) {
+      String newAPSSID = request->getParam("apssid", true)->value();
+
+      if (newAPSSID.length() > 0) {
+        preferences.putString("apssid", newAPSSID);
+        isUpdated = true;
+        WiFi.softAPdisconnect(true);
+        WiFi.softAP(newAPSSID.c_str(), currentAPPassword.c_str());
+      }
+    }
+  
+    else if (request->hasParam("ap_password", true)) {
+      String newAPPassword = request->getParam("ap_password", true)->value();
+
+      if (newAPPassword.length() >= 8) {
+        preferences.putString("ap_password", newAPPassword);
+        isUpdated = true;
+        WiFi.softAPdisconnect(true);
+        WiFi.softAP(currentAPSSID.c_str(), newAPPassword.c_str());
+      }
+    }
+
+
+    if (request->hasParam("fb_url", true)) {
+      String newFbUrl = request->getParam("fb_url", true)->value();
+      if (newFbUrl != currentFbUrl && newFbUrl.length() > 0) {
+        currentFbUrl = newFbUrl;
+        preferences.putString("fb_url", currentFbUrl);
         isUpdated = true;
       }
     }
 
-    if (request->hasParam("password", true)) {
-      String newPassword = request->getParam("password", true)->value();
-      if (newPassword.length() != 0 && newPassword != currentPassword) {
-        currentPassword = newPassword;
-        preferences.putString("password", currentPassword);
+    if (request->hasParam("fb_api_key", true)) {
+      String newFbApiKey = request->getParam("fb_api_key", true)->value();
+      if (newFbApiKey != currentFbApiKey && newFbApiKey.length() > 0) {
+        currentFbApiKey = newFbApiKey;
+        preferences.putString("fb_api_key", currentFbApiKey);
+        isUpdated = true;
+      }
+    }
+
+    if (request->hasParam("fb_email", true)) {
+      String newFbEmail = request->getParam("fb_email", true)->value();
+      if (newFbEmail != currentFbEmail && newFbEmail.length() > 0) {
+        currentFbEmail = newFbEmail;
+        preferences.putString("fb_email", currentFbEmail);
+        isUpdated = true;
+      }
+    }
+
+    // Only update the password if the user actually typed something in
+    if (request->hasParam("fb_password", true)) {
+      String newFbPassword = request->getParam("fb_password", true)->value();
+      if (newFbPassword.length() > 0 && newFbPassword != currentFbPassword) {
+        currentFbPassword = newFbPassword;
+        preferences.putString("fb_password", currentFbPassword);
         isUpdated = true;
       }
     }
@@ -118,11 +152,19 @@ void handleUpdateSettings(AsyncWebServerRequest *request) {
     preferences.end();
 
     if (isUpdated) {
-      if (request->hasParam("username", true) || request->hasParam("password", true)) {
-        handleLogout(request); 
-        return;
-      }
-      request->redirect("/settings?success=1");
+      // Send a clean HTML page with a JavaScript countdown that redirects the user
+      String html = "<html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
+      html += "<link rel=\"stylesheet\" href=\"style.css\"></head><body><div class=\"container\">";
+      html += "<h2>Settings Updated!</h2><p>Applying changes and rebooting...</p>";
+      html += "<p>Please reconnect to your home WiFi network. You will be redirected in <span id='timer'>10</span> seconds.</p>";
+      html += "<script>let count = 10; setInterval(() => { count--; document.getElementById('timer').innerText = count; if(count <= 0) window.location.href = '/'; }, 1000);</script>";
+      html += "</div></body></html>";
+
+      request->send(200, "text/html", html);
+
+      // Trigger the reboot flag
+      shouldReboot = true;
+      rebootTime = millis();
     } else {
       request->redirect("/settings?error=1");
     }
@@ -134,18 +176,18 @@ void handleUpdateSettings(AsyncWebServerRequest *request) {
 
 void setupSettingsRoutes() {
   server.on("/settings", HTTP_GET, [](AsyncWebServerRequest *request) {
-    if (!ensureLoggedInAndAuthorized(request, "admin")) return;
-    handleSettings(request);  
+    if (!isAPConnected(request)) return;
+    handleSettings(request);
   });
-  
+
   server.on("/api/get_settings", HTTP_GET, [](AsyncWebServerRequest *request) {
-    if (!ensureLoggedInAndAuthorized(request, "admin")) return;
+    if (!isAPConnected(request)) return;
     handleGetSettingsData(request);
   });
 
   server.on("/update_settings", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (!ensureLoggedInAndAuthorized(request, "admin")) return;
-    handleUpdateSettings(request);  
+    if (!isAPConnected(request)) return;
+    handleUpdateSettings(request);
   });
 }
 

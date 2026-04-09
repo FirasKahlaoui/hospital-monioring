@@ -1,70 +1,83 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ESP32 Settings</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Settings</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="nav">
-    <span>ESP32 Settings</span>
-    <div>
-      <a href="/">Dashboard</a>
-      <a href="/settings">Settings</a>
-      <a href="/logout">Logout</a>
+    <div class="nav">
+        <span>ESP32 Settings</span>
+        <div>
+            <a href="/">Dashboard</a>
+            <a href="/settings">Settings</a>
+        </div>
     </div>
-  </div>
-  
-  <div class="container">
-    <h2>Login Settings</h2>
-    <form action="/update_settings" method="POST">
-      <label for="username">Username:</label>
-      <input type="text" id="username" name="username" placeholder="Username">
 
-      <label for="password">Password:</label>
-      <input type="password" name="password" placeholder="New Password">
+    <div class="container">
+        <form action="/update_settings" method="POST">
+            <h2>Wifi Settings</h2>
+            <label for="ssid">WiFi SSID:</label>
+            <select id="ssid" name="ssid">
+                <option value="Null">Loading networks...</option>
+            </select>
 
-      <hr>
-      <h2>Wifi Settings</h2>
-      <label for="ssid">WiFi SSID:</label>
-      <select id="ssid" name="ssid">
-        <option value="Null">Loading networks...</option>
-      </select>
+            <label for="wifi_password">WiFi Password:</label>
+            <input type="password" name="wifi_password" placeholder="Password">
 
-      <label for="wifi_password">WiFi Password:</label>
-      <input type="password" name="wifi_password" placeholder="Password">
+            <hr>
+            <h2>Access Point Settings</h2>
+            <label for="apssid">Access Point SSID:</label>
+            <input type="text" name="apssid" placeholder="SSID">
 
-      <hr>
-      <h2>Access Point Settings</h2>
-      <label for="apssid">Access Point SSID:</label>
-      <input type="text" name="apssid" placeholder="SSID">
+            <label for="ap_password">Access Point Password:</label>
+            <input type="password" name="ap_password" placeholder="Password">
 
-      <label for="ap_password">Access Point Password:</label>
-      <input type="password" name="ap_password" placeholder="Password">
+            <button type="submit">Update Configurations</button>
+            <hr>
+            <h2>Firebase Settings</h2>
 
-      <button type="submit">Update Configurations</button>
-    </form>
-  </div>
+            <label for="fb_url">Database URL:</label>
+            <input type="text" id="fb_url" name="fb_url" placeholder="https://your-project-default-rtdb.firebaseio.com">
 
-  <script>
+            <label for="fb_api_key">API Key:</label>
+            <input type="text" id="fb_api_key" name="fb_api_key" placeholder="AIzaSy...">
+
+            <label for="fb_email">Auth Email:</label>
+            <input type="email" id="fb_email" name="fb_email" placeholder="device@project.com">
+
+            <label for="fb_password">Auth Password:</label>
+            <input type="password" name="fb_password" placeholder="Leave blank to keep current">
+        </form>
+    </div>
+
+    <script>
     // Fetch variables from the ESP32 to populate the HTML dynamically
     fetch('/api/get_settings')
       .then(response => response.json())
       .then(data => {
-        document.getElementById('username').value = data.username;
-        document.getElementById('ssid').innerHTML += data.wifiOptions;
-      });
+        console.log("Data received from ESP32:", data);
+        if (data.wifiOptions && data.wifiOptions !== "") {
+            document.getElementById('ssid').innerHTML = data.wifiOptions; 
+        } else {
+            document.getElementById('ssid').innerHTML = '<option value="Null">Scanning... Please refresh.</option>';
+        }
+        document.getElementById('fb_url').value = data.fb_url || '';
+        document.getElementById('fb_api_key').value = data.fb_api_key || '';
+        document.getElementById('fb_email').value = data.fb_email || '';
+      })
+      .catch(err => console.error("Error fetching settings:", err));
 
     // Handle success or error popups based on the URL
     const params = new URLSearchParams(window.location.search);
     if (params.has('success')) {
-      alert('Settings Updated Successfully!');
-      window.location.href = '/settings'; // Clean URL
+        alert('Settings Updated Successfully!');
+        window.location.href = '/settings'; // Clean URL
     } else if (params.has('error')) {
-      alert('No Changes Made or Connection Failed!');
-      window.location.href = '/settings'; // Clean URL
+        alert('No Changes Made or Connection Failed!');
+        window.location.href = '/settings'; // Clean URL
     }
-  </script>
+    </script>
 </body>
 </html>

@@ -12,7 +12,7 @@ extern Preferences preferences;
 extern AsyncWebServer server;
 
 void setupRoutes() {
-  // Serve static files from LittleFS automatically. 
+  // Serve static files from LittleFS automatically.
   server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html");
 
   setupAuthRoutes();

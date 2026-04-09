@@ -11,7 +11,7 @@ extern AsyncWebServer server;
 DHT dht(DHT_PIN, DHT_TYPE);
 
 void handleSensorData(AsyncWebServerRequest *request) {
-  
+
   float temperature = dht.readTemperature();
   float humidity = dht.readHumidity();
 
