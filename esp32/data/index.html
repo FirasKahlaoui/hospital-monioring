@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>ESP32 Dashboard</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="nav">
+    <span>ESP32 Dashboard</span>
+    <div>
+      <a href="/">Dashboard</a>
+      <a href="/settings">Settings</a>
+      <a href="/logout">Logout</a>
+    </div>
+  </div>
+
+  <h1>Capteurs</h1>
+  <div class="card">
+    <h2>DHT22</h2>
+    <p id="temperature">Temperature: Loading...</p>
+    <p id="humidity">Humidity: Loading...</p>
+  </div>
+  
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ESP32 Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { display: flex; justify-content: center; align-items: center; height: 100vh; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>ESP32 Login</h2>
+    <form method="POST" action="/login">
+      <input type="text" name="username" placeholder="Username" required>
+      <input type="password" name="password" placeholder="Password" required>
+      <button type="submit">Login</button>
+    </form>
+    <p id="error-message" style="color: red; font-size: 0.9em;"></p>
+  </div>
+
+  <script>
+    // Automatically display error if the backend redirect includes ?error=1
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('error')) {
+      document.getElementById('error-message').innerText = "Invalid credentials. Please try again.";
+    }
+  </script>
+</body>
+</html>

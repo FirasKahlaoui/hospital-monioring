@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32 Settings</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="nav">
+    <span>ESP32 Settings</span>
+    <div>
+      <a href="/">Dashboard</a>
+      <a href="/settings">Settings</a>
+      <a href="/logout">Logout</a>
+    </div>
+  </div>
+  
+  <div class="container">
+    <h2>Login Settings</h2>
+    <form action="/update_settings" method="POST">
+      <label for="username">Username:</label>
+      <input type="text" id="username" name="username" placeholder="Username">
+
+      <label for="password">Password:</label>
+      <input type="password" name="password" placeholder="New Password">
+
+      <hr>
+      <h2>Wifi Settings</h2>
+      <label for="ssid">WiFi SSID:</label>
+      <select id="ssid" name="ssid">
+        <option value="Null">Loading networks...</option>
+      </select>
+
+      <label for="wifi_password">WiFi Password:</label>
+      <input type="password" name="wifi_password" placeholder="Password">
+
+      <hr>
+      <h2>Access Point Settings</h2>
+      <label for="apssid">Access Point SSID:</label>
+      <input type="text" name="apssid" placeholder="SSID">
+
+      <label for="ap_password">Access Point Password:</label>
+      <input type="password" name="ap_password" placeholder="Password">
+
+      <button type="submit">Update Configurations</button>
+    </form>
+  </div>
+
+  <script>
+    // Fetch variables from the ESP32 to populate the HTML dynamically
+    fetch('/api/get_settings')
+      .then(response => response.json())
+      .then(data => {
+        document.getElementById('username').value = data.username;
+        document.getElementById('ssid').innerHTML += data.wifiOptions;
+      });
+
+    // Handle success or error popups based on the URL
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('success')) {
+      alert('Settings Updated Successfully!');
+      window.location.href = '/settings'; // Clean URL
+    } else if (params.has('error')) {
+      alert('No Changes Made or Connection Failed!');
+      window.location.href = '/settings'; // Clean URL
+    }
+  </script>
+</body>
+</html>
