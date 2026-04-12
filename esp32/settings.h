@@ -2,10 +2,10 @@
 #define SETTINGS_H
 
 #include <ESPAsyncWebServer.h>
+#include <LittleFS.h>
 #include <Preferences.h>
 #include <WiFi.h>
 #include <ctime>
-#include <LittleFS.h>
 
 extern String currentSSID;
 extern String currentWiFiPassword;
@@ -18,27 +18,44 @@ extern String currentFbUrl;
 extern String currentFbApiKey;
 extern String currentFbEmail;
 extern String currentFbPassword;
+extern String currentRoomId;
+extern String currentPatientId;
 extern bool shouldReboot;
 extern unsigned long rebootTime;
 
 #define WIFI_ATTEMPTS 10
 #define WIFI_DELAY_MS 1000
 
+bool isAPConnected(AsyncWebServerRequest *request) {
+  // Check if the client reached the server via the ESP32's Access Point IP
+  if (request->client()->localIP() == WiFi.softAPIP()) {
+    return true;
+  } else {
+    // If they came from the home router, kick them back to the dashboard
+    request->redirect("/");
+    return false;
+  }
+}
+
 void handleSettings(AsyncWebServerRequest *request) {
-  if (!isAPConnected(request)) return;
+  if (!isAPConnected(request))
+    return;
   // Serve the static HTML file
   request->send(LittleFS, "/settings.html", "text/html");
 }
 
 // Sends current config to settings.html via JSON
 void handleGetSettingsData(AsyncWebServerRequest *request) {
-  if (!isAPConnected(request)) return;
+  if (!isAPConnected(request))
+    return;
 
   String json = "{";
   json += "\"wifiOptions\": \"" + wifiOptionsHTML + "\",";
   json += "\"fb_url\": \"" + currentFbUrl + "\",";
   json += "\"fb_api_key\": \"" + currentFbApiKey + "\",";
-  json += "\"fb_email\": \"" + currentFbEmail + "\"";  // NO PASSWORD HERE
+  json += "\"fb_email\": \"" + currentFbEmail + "\",";
+  json += "\"room_id\": \"" + currentRoomId + "\",";
+  json += "\"patient_id\": \"" + currentPatientId + "\"";
   json += "}";
 
   request->send(200, "application/json", json);
@@ -48,16 +65,21 @@ void handleUpdateSettings(AsyncWebServerRequest *request) {
   bool isUpdated = false;
   IPAddress clientIP = request->client()->remoteIP();
 
-  if (!isAPConnected(request)) return;
+  if (!isAPConnected(request))
+    return;
 
   if (request->method() == HTTP_POST) {
     preferences.begin("settings", false);
 
-    if (request->hasParam("ssid", true) && request->hasParam("wifi_password", true)) {
+    // --- Handle WiFi connection ---
+    if (request->hasParam("ssid", true) &&
+        request->hasParam("wifi_password", true)) {
       String newSSID = request->getParam("ssid", true)->value();
-      String newWiFiPassword = request->getParam("wifi_password", true)->value();
+      String newWiFiPassword =
+          request->getParam("wifi_password", true)->value();
 
-      if (newSSID.length() != 0 && newWiFiPassword.length() != 0 && newSSID != "Null") {
+      if (newSSID.length() != 0 && newWiFiPassword.length() != 0 &&
+          newSSID != "Null") {
         currentSSID = newSSID;
         currentWiFiPassword = newWiFiPassword;
         WiFi.begin(currentSSID.c_str(), currentWiFiPassword.c_str());
@@ -76,7 +98,9 @@ void handleUpdateSettings(AsyncWebServerRequest *request) {
       }
     }
 
-    if (request->hasParam("apssid", true) && request->hasParam("ap_password", true)) {
+    // --- Handle AP config ---
+    if (request->hasParam("apssid", true) &&
+        request->hasParam("ap_password", true)) {
       String newAPSSID = request->getParam("apssid", true)->value();
       String newAPPassword = request->getParam("ap_password", true)->value();
 
@@ -99,7 +123,7 @@ void handleUpdateSettings(AsyncWebServerRequest *request) {
         WiFi.softAP(newAPSSID.c_str(), currentAPPassword.c_str());
       }
     }
-  
+
     else if (request->hasParam("ap_password", true)) {
       String newAPPassword = request->getParam("ap_password", true)->value();
 
@@ -111,7 +135,7 @@ void handleUpdateSettings(AsyncWebServerRequest *request) {
       }
     }
 
-
+    // --- Handle Firebase URL ---
     if (request->hasParam("fb_url", true)) {
       String newFbUrl = request->getParam("fb_url", true)->value();
       if (newFbUrl != currentFbUrl && newFbUrl.length() > 0) {
@@ -121,6 +145,7 @@ void handleUpdateSettings(AsyncWebServerRequest *request) {
       }
     }
 
+    // --- Handle Firebase API key ---
     if (request->hasParam("fb_api_key", true)) {
       String newFbApiKey = request->getParam("fb_api_key", true)->value();
       if (newFbApiKey != currentFbApiKey && newFbApiKey.length() > 0) {
@@ -130,6 +155,7 @@ void handleUpdateSettings(AsyncWebServerRequest *request) {
       }
     }
 
+    // --- Handle Firebase email ---
     if (request->hasParam("fb_email", true)) {
       String newFbEmail = request->getParam("fb_email", true)->value();
       if (newFbEmail != currentFbEmail && newFbEmail.length() > 0) {
@@ -139,7 +165,7 @@ void handleUpdateSettings(AsyncWebServerRequest *request) {
       }
     }
 
-    // Only update the password if the user actually typed something in
+    // --- Handle Firebase password ---
     if (request->hasParam("fb_password", true)) {
       String newFbPassword = request->getParam("fb_password", true)->value();
       if (newFbPassword.length() > 0 && newFbPassword != currentFbPassword) {
@@ -149,20 +175,44 @@ void handleUpdateSettings(AsyncWebServerRequest *request) {
       }
     }
 
+    // --- Handle Room ID ---
+    if (request->hasParam("room_id", true)) {
+      String newRoomId = request->getParam("room_id", true)->value();
+      if (newRoomId != currentRoomId && newRoomId.length() > 0) {
+        currentRoomId = newRoomId;
+        preferences.putString("room_id", currentRoomId);
+        isUpdated = true;
+      }
+    }
+
+    // ---  Handle Patient ID ---
+    if (request->hasParam("patient_id", true)) {
+      String newPatientId = request->getParam("patient_id", true)->value();
+      if (newPatientId != currentPatientId && newPatientId.length() > 0) {
+        currentPatientId = newPatientId;
+        preferences.putString("patient_id", currentPatientId);
+        isUpdated = true;
+      }
+    }
+
     preferences.end();
 
     if (isUpdated) {
-      // Send a clean HTML page with a JavaScript countdown that redirects the user
-      String html = "<html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
-      html += "<link rel=\"stylesheet\" href=\"style.css\"></head><body><div class=\"container\">";
-      html += "<h2>Settings Updated!</h2><p>Applying changes and rebooting...</p>";
-      html += "<p>Please reconnect to your home WiFi network. You will be redirected in <span id='timer'>10</span> seconds.</p>";
-      html += "<script>let count = 10; setInterval(() => { count--; document.getElementById('timer').innerText = count; if(count <= 0) window.location.href = '/'; }, 1000);</script>";
+      String html = "<html><head><meta name=\"viewport\" "
+                    "content=\"width=device-width, initial-scale=1\">";
+      html += "<link rel=\"stylesheet\" href=\"style.css\"></head><body><div "
+              "class=\"container\">";
+      html +=
+          "<h2>Settings Updated!</h2><p>Applying changes and rebooting...</p>";
+      html += "<p>Please reconnect to your home WiFi network. You will be "
+              "redirected in <span id='timer'>10</span> seconds.</p>";
+      html += "<script>let count = 10; setInterval(() => { count--; "
+              "document.getElementById('timer').innerText = count; if(count <= "
+              "0) window.location.href = '/'; }, 1000);</script>";
       html += "</div></body></html>";
 
       request->send(200, "text/html", html);
 
-      // Trigger the reboot flag
       shouldReboot = true;
       rebootTime = millis();
     } else {
@@ -175,18 +225,21 @@ void handleUpdateSettings(AsyncWebServerRequest *request) {
 }
 
 void setupSettingsRoutes() {
-  server.on("/settings", HTTP_GET, [](AsyncWebServerRequest *request) {
-    if (!isAPConnected(request)) return;
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    if (!isAPConnected(request))
+      return;
     handleSettings(request);
   });
 
   server.on("/api/get_settings", HTTP_GET, [](AsyncWebServerRequest *request) {
-    if (!isAPConnected(request)) return;
+    if (!isAPConnected(request))
+      return;
     handleGetSettingsData(request);
   });
 
   server.on("/update_settings", HTTP_POST, [](AsyncWebServerRequest *request) {
-    if (!isAPConnected(request)) return;
+    if (!isAPConnected(request))
+      return;
     handleUpdateSettings(request);
   });
 }

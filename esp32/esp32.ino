@@ -4,9 +4,11 @@
 #include <ESPAsyncWebServer.h>
 #include <Preferences.h>
 #include <LittleFS.h>
-#include "routes.h"
 #include <FirebaseClient.h>
 #include <WiFiClientSecure.h>
+
+#include "settings.h"
+#include "sensors.h"
 
 // FIREBASE OBJECTS
 WiFiClientSecure ssl_client;
@@ -17,8 +19,8 @@ RealtimeDatabase Database;
 // Global Variables
 Preferences preferences;
 AsyncWebServer server(80);
-String currentSSID = "bardo";
-String currentWiFiPassword = "12345679";
+String currentSSID = "TUNISIETELECOM-2.4G-6aZF";
+String currentWiFiPassword = "RXW7XezR";
 String currentAPSSID = "ESP32_001";
 String currentAPPassword = "men0lel1";
 String wifiOptionsHTML = "";
@@ -26,11 +28,20 @@ String currentFbUrl = "";
 String currentFbApiKey = "";
 String currentFbEmail = "";
 String currentFbPassword = "";
+String currentRoomId = "room_001";
+String currentPatientId = "patient_001";
 bool shouldReboot = false;
 unsigned long rebootTime = 0;
 
 const unsigned long SCAN_INTERVAL_MS = 10000;
 unsigned long lastScanTime = 0 - SCAN_INTERVAL_MS;
+
+const unsigned long DEBUG_INTERVAL_MS = 2000;
+unsigned long lastDebugPrint = 0;
+
+// Firebase Push Timer
+const unsigned long FIREBASE_INTERVAL_MS = 1000;
+unsigned long lastFirebasePush = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -56,27 +67,33 @@ void setup() {
     Serial.println("NO FILES FOUND! The data folder is empty or didn't upload.");
   }
   Serial.println("-----------------------------------");
-
   // Load preferences
   preferences.begin("settings", true);
-  currentSSID = preferences.getString("ssid", "bardo");
-  currentWiFiPassword = preferences.getString("wifi_password", "12345679");
+  currentSSID = preferences.getString("ssid", "");
+  currentWiFiPassword = preferences.getString("wifi_password", "");
   currentAPSSID = preferences.getString("apssid", "ESP32_001");
   currentAPPassword = preferences.getString("ap_password", "men0lel1");
   currentFbUrl = preferences.getString("fb_url", "");
   currentFbApiKey = preferences.getString("fb_api_key", "");
   currentFbEmail = preferences.getString("fb_email", "");
   currentFbPassword = preferences.getString("fb_password", "");
+  currentRoomId = preferences.getString("room_id", "room_001");
+  currentPatientId = preferences.getString("patient_id", "patient_001");
   preferences.end();
 
-  // Initialize hardware components
-  dht.begin();
+  // Initialize Hardware Sensors
+  initSensors();
 
   WiFi.mode(WIFI_AP_STA);
 
   // Connect to Wi-Fi
   WiFi.begin(currentSSID.c_str(), currentWiFiPassword.c_str());
   int attempts = 0;
+  Serial.println("\nTrying to connect to Wifi...");
+  Serial.print("SSID: ");
+  Serial.println(currentSSID);
+  Serial.print("Password: ");
+  Serial.println(currentWiFiPassword);
   while (WiFi.status() != WL_CONNECTED && attempts < WIFI_ATTEMPTS) {
     delay(WIFI_DELAY_MS);
     Serial.print(".");
@@ -91,7 +108,7 @@ void setup() {
     WiFi.disconnect();
   }
 
-  if (WiFi.status() == WL_CONNECTED && currentFbApiKey.length() > 0 && currentFbEmail.length() > 0) {
+  if (WiFi.status() == WL_CONNECTED && currentFbApiKey.length() > 0) {
     Serial.println("Initializing Firebase...");
 
     ssl_client.setInsecure();
@@ -101,7 +118,7 @@ void setup() {
     initializeApp(aClient, app, getAuth(user_auth));
 
     app.getApp<RealtimeDatabase>(Database);
-    Database.url(currentFbUrl); // Uncomment and use your DB URL variable here
+    Database.url(currentFbUrl); 
 
     Serial.println("Firebase App Initialized.");
   }
@@ -112,7 +129,7 @@ void setup() {
   Serial.println(WiFi.softAPIP());
 
   // Set up routes and start the server
-  setupRoutes();
+  setupSettingsRoutes();
   server.begin();
   Serial.println("HTTP server started");
 
@@ -127,25 +144,33 @@ void setup() {
 void loop() {
   if (shouldReboot) {
     if (millis() - rebootTime > 2000) {
-      Serial.println("Rebooting device to apply new settings...");
       ESP.restart();
     }
     return;
   }
 
+  // Keep Firebase running
   app.loop();
+
+  updateSensors();
+
+  if (millis() - lastDebugPrint > DEBUG_INTERVAL_MS) {
+    lastDebugPrint = millis();
+    Serial.print("[DEBUG] Temp: "); Serial.print(currentTemp);
+    Serial.print(" °C | Hum: "); Serial.print(currentHumidity);
+    Serial.print(" % | BPM: "); Serial.print(currentBPM);
+    Serial.print(" | SpO2: "); Serial.print(currentSpO2);
+    Serial.println(" %");
+  }
 
   unsigned long currentTime = millis();
   if (lastScanTime == 0 || currentTime - lastScanTime >= SCAN_INTERVAL_MS) {
-    lastScanTime = (currentTime == 0) ? 1 : currentTime; // Prevent staying 0
-    Serial.println("Starting background WiFi scan...");
-    WiFi.scanNetworks(true);  // 'true' makes it async
+    lastScanTime = (currentTime == 0) ? 1 : currentTime; 
+    WiFi.scanNetworks(true);  
   }
 
   int n = WiFi.scanComplete();
-  
-  if (n >= 0) { // Scan successfully finished!
-    
+  if (n >= 0) { 
     String options = "";
     if (n == 0) {
       options = "<option value='Null'>No Networks Found</option>";
@@ -155,12 +180,31 @@ void loop() {
       }
     }
     wifiOptionsHTML = options;
-    WiFi.scanDelete();  // Clear memory
-    
+    WiFi.scanDelete();  
   } else if (n == -2) { 
-    // -2 means WIFI_SCAN_FAILED. The radio was busy.
-    Serial.println("Scan failed (Radio might be busy). Retrying...");
-    lastScanTime = 0; // Force it to try again immediately on the next loop
+    lastScanTime = 0; 
+  }
+
+  // Push data to Firebase periodically
+  if (app.ready() && (millis() - lastFirebasePush > FIREBASE_INTERVAL_MS)) {
+    lastFirebasePush = millis();
+
+    // --- Push Room Data (Temperature & Humidity) ---
+    String roomPath = "/rooms/" + currentRoomId;
+    String roomJson = "{\"temperature\":" + String(currentTemp) + 
+      ",\"humidity\":" + String(currentHumidity) + "}";
+    Database.set<String>(aClient, roomPath, roomJson);
+
+    // --- Push Patient Data (Heart Rate & SpO2) ---
+    // Only push if the finger is actually present and calculating
+    if (currentBPM > 0 || currentSpO2 > 0) {
+      String patientPath = "/patients/" + currentPatientId;
+      String patientJson = "{\"heartRate\":" + String(currentBPM) + 
+        ",\"spO2\":" + String(currentSpO2) + "}";
+      Database.set<String>(aClient, patientPath, patientJson);
+    }
+
+    Serial.println("Pushed updated Room and Patient data to Firebase.");
   }
 
   delay(10);
