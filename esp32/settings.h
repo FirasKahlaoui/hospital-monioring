@@ -41,7 +41,7 @@ void handleSettings(AsyncWebServerRequest *request) {
   if (!isAPConnected(request))
     return;
   // Serve the static HTML file
-  request->send(LittleFS, "/settings.html", "text/html");
+  request->send(LittleFS, "/index.html", "text/html");
 }
 
 // Sends current config to settings.html via JSON
@@ -70,8 +70,9 @@ void handleUpdateSettings(AsyncWebServerRequest *request) {
 
   if (request->method() == HTTP_POST) {
     preferences.begin("settings", false);
+    Serial.println("\n--- Processing Settings Update ---");
 
-    // --- Handle WiFi connection ---
+    //  Handle WiFi connection
     if (request->hasParam("ssid", true) &&
         request->hasParam("wifi_password", true)) {
       String newSSID = request->getParam("ssid", true)->value();
@@ -82,23 +83,17 @@ void handleUpdateSettings(AsyncWebServerRequest *request) {
           newSSID != "Null") {
         currentSSID = newSSID;
         currentWiFiPassword = newWiFiPassword;
-        WiFi.begin(currentSSID.c_str(), currentWiFiPassword.c_str());
 
-        int attempts = 0;
-        while (WiFi.status() != WL_CONNECTED && attempts < WIFI_ATTEMPTS) {
-          delay(WIFI_DELAY_MS);
-          attempts++;
-        }
-
-        if (WiFi.status() == WL_CONNECTED) {
-          preferences.putString("ssid", currentSSID);
-          preferences.putString("wifi_password", currentWiFiPassword);
-          isUpdated = true;
-        }
+        // Save to memory immediately, do NOT try to connect here!
+        preferences.putString("ssid", currentSSID);
+        preferences.putString("wifi_password", currentWiFiPassword);
+        isUpdated = true;
+        Serial.println("[SAVED] WiFi SSID: " + currentSSID);
+        Serial.println("[SAVED] WiFi Password: " + currentWiFiPassword);
       }
     }
 
-    // --- Handle AP config ---
+    //  Handle AP config
     if (request->hasParam("apssid", true) &&
         request->hasParam("ap_password", true)) {
       String newAPSSID = request->getParam("apssid", true)->value();
@@ -108,94 +103,93 @@ void handleUpdateSettings(AsyncWebServerRequest *request) {
         preferences.putString("apssid", newAPSSID);
         preferences.putString("ap_password", newAPPassword);
         isUpdated = true;
-        WiFi.softAPdisconnect(true);
-        WiFi.softAP(newAPSSID.c_str(), newAPPassword.c_str());
+        Serial.println("[SAVED] AP SSID: " + newAPSSID);
+        Serial.println("[SAVED] AP Password: " + newAPPassword);
       }
-    }
-
-    else if (request->hasParam("apssid", true)) {
+    } else if (request->hasParam("apssid", true)) {
       String newAPSSID = request->getParam("apssid", true)->value();
-
       if (newAPSSID.length() > 0) {
         preferences.putString("apssid", newAPSSID);
         isUpdated = true;
-        WiFi.softAPdisconnect(true);
-        WiFi.softAP(newAPSSID.c_str(), currentAPPassword.c_str());
+        Serial.println("[SAVED] AP SSID: " + newAPSSID);
       }
-    }
-
-    else if (request->hasParam("ap_password", true)) {
+    } else if (request->hasParam("ap_password", true)) {
       String newAPPassword = request->getParam("ap_password", true)->value();
-
       if (newAPPassword.length() >= 8) {
         preferences.putString("ap_password", newAPPassword);
         isUpdated = true;
-        WiFi.softAPdisconnect(true);
-        WiFi.softAP(currentAPSSID.c_str(), newAPPassword.c_str());
+        Serial.println("[SAVED] AP Password: " + newAPPassword);
       }
     }
 
-    // --- Handle Firebase URL ---
+    //  Handle Firebase URL
     if (request->hasParam("fb_url", true)) {
       String newFbUrl = request->getParam("fb_url", true)->value();
       if (newFbUrl != currentFbUrl && newFbUrl.length() > 0) {
         currentFbUrl = newFbUrl;
         preferences.putString("fb_url", currentFbUrl);
         isUpdated = true;
+        Serial.println("[SAVED] Firebase URL: " + currentFbUrl);
       }
     }
 
-    // --- Handle Firebase API key ---
+    //  Handle Firebase API key
     if (request->hasParam("fb_api_key", true)) {
       String newFbApiKey = request->getParam("fb_api_key", true)->value();
       if (newFbApiKey != currentFbApiKey && newFbApiKey.length() > 0) {
         currentFbApiKey = newFbApiKey;
         preferences.putString("fb_api_key", currentFbApiKey);
         isUpdated = true;
+        Serial.println("[SAVED] Firebase API Key: " + currentFbApiKey);
       }
     }
 
-    // --- Handle Firebase email ---
+    //  Handle Firebase email
     if (request->hasParam("fb_email", true)) {
       String newFbEmail = request->getParam("fb_email", true)->value();
       if (newFbEmail != currentFbEmail && newFbEmail.length() > 0) {
         currentFbEmail = newFbEmail;
         preferences.putString("fb_email", currentFbEmail);
         isUpdated = true;
+        Serial.println("[SAVED] Firebase Email: " + currentFbEmail);
       }
     }
 
-    // --- Handle Firebase password ---
+    //  Handle Firebase password
     if (request->hasParam("fb_password", true)) {
       String newFbPassword = request->getParam("fb_password", true)->value();
       if (newFbPassword.length() > 0 && newFbPassword != currentFbPassword) {
         currentFbPassword = newFbPassword;
         preferences.putString("fb_password", currentFbPassword);
         isUpdated = true;
+        Serial.println("[SAVED] Firebase Password: " + currentFbPassword);
       }
     }
 
-    // --- Handle Room ID ---
+    //  Handle Room ID
     if (request->hasParam("room_id", true)) {
       String newRoomId = request->getParam("room_id", true)->value();
       if (newRoomId != currentRoomId && newRoomId.length() > 0) {
         currentRoomId = newRoomId;
         preferences.putString("room_id", currentRoomId);
         isUpdated = true;
+        Serial.println("[SAVED] Room ID: " + currentRoomId);
       }
     }
 
-    // ---  Handle Patient ID ---
+    //  Handle Patient ID
     if (request->hasParam("patient_id", true)) {
       String newPatientId = request->getParam("patient_id", true)->value();
       if (newPatientId != currentPatientId && newPatientId.length() > 0) {
         currentPatientId = newPatientId;
         preferences.putString("patient_id", currentPatientId);
         isUpdated = true;
+        Serial.println("[SAVED] Patient ID: " + currentPatientId);
       }
     }
 
     preferences.end();
+    Serial.println("-----------------------------------\n");
 
     if (isUpdated) {
       String html = "<html><head><meta name=\"viewport\" "
@@ -203,20 +197,18 @@ void handleUpdateSettings(AsyncWebServerRequest *request) {
       html += "<link rel=\"stylesheet\" href=\"style.css\"></head><body><div "
               "class=\"container\">";
       html +=
-          "<h2>Settings Updated!</h2><p>Applying changes and rebooting...</p>";
-      html += "<p>Please reconnect to your home WiFi network. You will be "
-              "redirected in <span id='timer'>10</span> seconds.</p>";
-      html += "<script>let count = 10; setInterval(() => { count--; "
-              "document.getElementById('timer').innerText = count; if(count <= "
-              "0) window.location.href = '/'; }, 1000);</script>";
+          "<h2>Settings Saved!</h2><p>Applying changes and rebooting...</p>";
+      html += "<p>Please wait while the device restarts. Reconnect to your "
+              "designated Wi-Fi network.</p>";
       html += "</div></body></html>";
 
       request->send(200, "text/html", html);
 
+      // Tell the main loop it is time to reboot
       shouldReboot = true;
       rebootTime = millis();
     } else {
-      request->redirect("/settings?error=1");
+      request->redirect("/?error=1");
     }
 
   } else {

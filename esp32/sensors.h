@@ -7,17 +7,17 @@
 #include <DHT.h>
 #include <Wire.h>
 
-// --- Sensor Pins & Settings ---
+//  Sensor Pins & Settings
 #define DHT_PIN 4
 #define DHT_TYPE DHT22
 
-// --- Global Variables (Read by main.ino to send to Firebase) ---
+//  Global Variables (Read by main.ino to send to Firebase)
 int currentBPM = 0;
 int currentSpO2 = 0;
 float currentTemp = 0.0;
 float currentHumidity = 0.0;
 
-// --- Internal Sensor Objects & Variables ---
+//  Internal Sensor Objects & Variables
 DHT dht(DHT_PIN, DHT_TYPE);
 MAX30105 particleSensor;
 
