@@ -1,27 +1,98 @@
 <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
-<head>
-  <title>ESP32 Dashboard</title>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <div class="nav">
-    <span>ESP32 Dashboard</span>
-    <div>
-      <a href="/">Dashboard</a>
-      <a href="/settings">Settings</a>
-    </div>
-  </div>
+  <head>
+    <title>ESP32 Configuration</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <div class="container">
+      <form action="/update_settings" method="POST">
+        
+        <h2>Wi-Fi Settings</h2>
+        <label for="ssid">Home Network:</label>
+        <select id="ssid" name="ssid">
+          <option value="Null">Loading networks...</option>
+        </select>
 
-  <h1>Capteurs</h1>
-  <div class="card">
-    <h2>DHT22</h2>
-    <p id="temperature">Temperature: Loading...</p>
-    <p id="humidity">Humidity: Loading...</p>
-  </div>
-  
-  <script src="script.js"></script>
-</body>
+        <label for="wifi_password">Wi-Fi Password:</label>
+        <input type="password" id="wifi_password" name="wifi_password" placeholder="Password">
+
+        <hr>
+        
+        <h2>Access Point Settings</h2>
+        <label for="apssid">ESP32 Network Name:</label>
+        <input type="text" id="apssid" name="apssid" placeholder="e.g. ESP32_001">
+
+        <label for="ap_password">ESP32 Password:</label>
+        <input type="password" id="ap_password" name="ap_password" placeholder="Min. 8 characters">
+
+        <hr>
+        
+        <h2>Device Identity</h2>
+        <label for="room_id">Room ID:</label>
+        <input type="text" id="room_id" name="room_id" placeholder="e.g. room_001">
+
+        <label for="patient_id">Patient ID:</label>
+        <input type="text" id="patient_id" name="patient_id" placeholder="e.g. patient_A7X9">
+
+        <hr>
+        
+        <h2>Firebase Settings</h2>
+        <label for="fb_url">Database URL:</label>
+        <input type="text" id="fb_url" name="fb_url" placeholder="https://your-project.firebaseio.com">
+
+        <label for="fb_api_key">API Key:</label>
+        <input type="text" id="fb_api_key" name="fb_api_key" placeholder="AIzaSy...">
+
+        <label for="fb_email">Auth Email:</label>
+        <input type="email" id="fb_email" name="fb_email" placeholder="device@project.com">
+
+        <label for="fb_password">Auth Password:</label>
+        <input type="password" id="fb_password" name="fb_password" placeholder="Leave blank to keep current">
+
+        <button type="submit">Save & Restart</button>
+      </form>
+    </div>
+
+    <script>
+      // Fetch variables from the ESP32 to populate the HTML dynamically
+      function fetchSettings(isFirstLoad = false) {
+        fetch('/api/get_settings')
+          .then(response => response.json())
+          .then(data => {
+            // Update the WiFi dropdown
+            if (data.wifiOptions && data.wifiOptions !== "") {
+              document.getElementById('ssid').innerHTML = data.wifiOptions; 
+            } else {
+              document.getElementById('ssid').innerHTML = '<option value="Null">Scanning... Please wait.</option>';
+            }
+
+            // Update the text fields on the first load so we don't interrupt the user's typing
+            if (isFirstLoad) {
+              document.getElementById('fb_url').value = data.fb_url || '';
+              document.getElementById('fb_api_key').value = data.fb_api_key || '';
+              document.getElementById('fb_email').value = data.fb_email || '';
+              document.getElementById('room_id').value = data.room_id || '';
+              document.getElementById('patient_id').value = data.patient_id || '';
+            }
+          })
+          .catch(err => console.error("Error fetching settings:", err));
+      }
+
+      fetchSettings(true);
+
+      // Run the fetch periodically for WiFi scanning
+      setInterval(() => fetchSettings(false), 5000);
+
+      // Handle success or error popups based on the URL
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('error')) {
+        alert('Error: No Changes Made or Invalid Input!');
+        window.location.href = '/'; // Clean URL
+      }
+    </script>
+  </body>
 </html>
