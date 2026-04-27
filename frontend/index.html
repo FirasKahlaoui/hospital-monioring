@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hospital Monitoring Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+    <main class="dashboard">
+        <header class="hero">
+            <div>
+                <p class="eyebrow">Live Monitoring</p>
+                <h1>Hospital Telemetry</h1>
+                <p class="subtext">
+                    Streaming readings from Firebase Realtime Database for room_001 and patient_001.
+                </p>
+            </div>
+            <div class="status-wrap">
+                <span id="connectionDot" class="status-dot"></span>
+                <span id="connectionText">Connecting...</span>
+            </div>
+        </header>
+
+        <section class="cards">
+            <article class="card">
+                <h2>Room 001</h2>
+                <p class="hint">Temperature and humidity over time</p>
+                <canvas id="roomChart" aria-label="Room chart"></canvas>
+            </article>
+
+            <article class="card">
+                <h2>Patient 001</h2>
+                <p class="hint">Heart rate and SpO2 over time</p>
+                <canvas id="patientChart" aria-label="Patient chart"></canvas>
+            </article>
+        </section>
+
+        <section class="tables">
+            <article class="card table-card">
+                <h3>Latest Room Records</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Temperature</th>
+                                <th>Humidity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="roomTableBody"></tbody>
+                    </table>
+                </div>
+            </article>
+
+            <article class="card table-card">
+                <h3>Latest Patient Records</h3>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Heart Rate</th>
+                                <th>SpO2</th>
+                            </tr>
+                        </thead>
+                        <tbody id="patientTableBody"></tbody>
+                    </table>
+                </div>
+            </article>
+        </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <script type="module" src="app.js"></script>
+</body>
+
+</html>
