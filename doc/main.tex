@@ -1,26 +1,18 @@
-\RequirePackage{xcolor}
-\documentclass[pfe ,titlesmallcaps]{isipfe}
+\documentclass[12pt, a4paper]{report}
 
-\usepackage[T1]{fontenc}
-\usepackage[utf8]{inputenc}
+\usepackage{mystyle}
+
 \graphicspath{{./Figures/}}
-\usepackage[hidelinks]{hyperref}
 \usepackage{algorithm}
 \usepackage{algorithmic}
-\usepackage{float}
 \usepackage{acronym}
 \usepackage{textcomp}
 \usepackage[english]{babel}
 \selectlanguage{english}
-\usepackage{amsmath}
-\usepackage{amssymb}
 \usepackage{tikz}
 \usetikzlibrary{shapes.geometric, arrows.meta, positioning,
                 fit, backgrounds, calc}
-\usepackage{booktabs}
 \usepackage{tabularx}
-\usepackage{array}
-\usepackage{multirow}
 \usepackage{listings}
 \usepackage{enumitem}
 \usepackage{pifont}
@@ -29,12 +21,12 @@
  
 \begin{document}
 
-\frontmatter
+\pagenumbering{roman}
 
 \title{Titre du projet}
 \author{Prénom NOM}
 
-\input{page_garde}
+\input{chapters/page_garde}
 
 \setcounter{secnumdepth}{3}
 \setcounter{tocdepth}{2}
@@ -42,24 +34,22 @@
 
 \listoffigures
 \listoftables
-\input{acronymes}
+\input{chapters/acronymes}
 
-\mainmatter
+\clearpage
+\pagenumbering{arabic}
 
-\include{ch01_introduction}
-\include{ch02_analysis}
-\include{ch03_architecture}
-\include{ch04_methodology}
-\include{ch05_implementation}
-\include{ch06_results}
-\include{ch07_discussion}
-\include{ch08_conclusion}
-\include{ch09_ai}
+\include{chapters/ch01_introduction}
+\include{chapters/ch02_analysis}
+\include{chapters/ch03_architecture}
+\include{chapters/ch04_methodology}
+\include{chapters/ch05_implementation}
+\include{chapters/ch06_results}
+\include{chapters/ch07_discussion}
+\include{chapters/ch08_conclusion}
+\include{chapters/ch09_ai}
 
 %\appendix
-
-
-\backmatter
 
 %%%%% Bibliography, in BibTeX format (the references.bib file)
 \bibliography{references}

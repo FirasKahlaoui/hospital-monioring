@@ -137,7 +137,7 @@ The dependency graph is strictly acyclic: \texttt{esp32.ino} includes all module
 No module includes another module's header directly.
 
 \subsection*{Backend Software}
-The service layer is implemented as a \textbf{Node.js} application using the \textbf{tRPC} framework to provide a strictly typed API. This architecture eliminates the need for manual schema synchronization between the server and client. The backend utilizes the \textbf{Firebase Admin SDK} for secure authentication verification and uses \textbf{Firestore} as the primary system of record for staff and patient data. Automated alert logic is processed in real-time by monitoring the telemetry stream against patient-specific thresholds.
+The service layer is implemented as a \textbf{Node.js} application using the \textbf{tRPC} framework to provide a strictly typed API. This architecture eliminates the need for manual schema \mbox{synchronization} between the server and client. The backend utilizes the \textbf{Firebase Admin SDK} for secure authentication verification and uses \textbf{Firestore} as the primary system of record for staff and patient data. Automated alert logic is processed in real-time by monitoring the telemetry stream against patient-specific thresholds.
 
 \begin{figure}[H]
     \centering

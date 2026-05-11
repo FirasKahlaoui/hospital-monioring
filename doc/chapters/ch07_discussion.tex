@@ -43,7 +43,7 @@ The dashboard's performance is stable under continuous operation, with the WebWo
 
 	\item[Implicit shared-memory atomicity.]
 	      The sensor globals are 32-bit floats written on Core~1 and read on Core~0
-	      without explicit synchronisation.
+	      without explicit \mbox{synchronisation}.
 	      A FreeRTOS mutex or atomic qualifier is the correct long-term solution.
 
 	\item[Single patient per device.]

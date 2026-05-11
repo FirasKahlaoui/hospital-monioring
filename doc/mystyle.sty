@@ -1,0 +1,94 @@
+\ProvidesPackage{mystyle}
+
+% Ensure UTF-8 encoding
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+
+% Font family
+\usepackage{lmodern}
+\usepackage{anyfontsize}
+\usepackage{microtype}
+\usepackage{slantsc}
+\renewcommand{\familydefault}{\rmdefault}
+
+% Colors
+\usepackage{xcolor}
+\definecolor{basecolor}{RGB}{0, 51, 102} % Deep navy blue
+\definecolor{sectioncolor}{RGB}{0, 57, 112} % Slightly brighter dark blue
+\definecolor{subsectioncolor}{RGB}{0, 63, 130} % Moderate dark blue
+\definecolor{subsubsectioncolor}{RGB}{0, 71, 144} % Slightly lighter but still dark blue
+
+% Section formatting
+\usepackage{titlesec}
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{basecolor}} % Chapter style
+  {\chaptertitlename\ \thechapter}{20pt}{\Huge}
+
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{sectioncolor}} % Section style
+  {\thesection}{1em}{}
+
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{subsectioncolor}} % Subsection style
+  {\thesubsection}{1em}{}
+
+\titleformat{\subsubsection}
+  {\normalfont\normalsize\bfseries\color{subsubsectioncolor}} % Subsubsection style
+  {\thesubsubsection}{1em}{}
+
+% Change section numbering to exclude chapter number
+\renewcommand{\thesection}{\arabic{section}}
+\renewcommand{\thesubsection}{\thesection.\arabic{subsection}}
+\renewcommand{\thesubsubsection}{\thesubsection.\arabic{subsubsection}}
+
+% Page layout
+\usepackage[a4paper, margin=1in, headheight=14.5pt]{geometry}
+
+% Header and footer
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\leftmark}
+\fancyfoot[C]{\thepage}
+
+% Line spacing
+\usepackage{setspace}
+\onehalfspacing
+
+% Additional packages
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{booktabs}
+
+% Hyperref package for clickable links
+\usepackage[hypertexnames=true]{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    filecolor=magenta,
+    urlcolor=sectioncolor,
+    linkbordercolor={1 1 1}
+}
+
+% Numbering depth
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{3}
+\renewcommand{\contentsname}{Table of Contents}
+
+% Prevent hyphenation
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
+\sloppy
+
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+
+\titleformat{\part}[display]
+  {\normalfont\Huge\bfseries\color{basecolor}} % format: huge + bold + basecolor
+  {\partname~\thepart}                          % label: "Part I"
+  {20pt}                                        % space between label and title
+  {\Huge}      

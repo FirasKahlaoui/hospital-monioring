@@ -47,8 +47,8 @@ The following operational scenarios define the expected system behaviour.
 	\item[UC-6: Staff Authentication and RBAC.]
 	      Medical staff (Doctors and Nurses) authenticate via Firebase. The system enforces Role-Based Access Control (RBAC), ensuring that clinical records are only accessible to authorized personnel assigned to the specific patient.
 	      
-	\item[UC-7: Clinical Data Synchronization.]
-	      Administrative users trigger synchronization between the local cache and the Firebase Firestore backend to ensure data consistency across multiple monitoring stations.
+	\item[UC-7: Clinical Data \mbox{Synchronization}.]
+	      Administrative users trigger \mbox{synchronization} between the local cache and the Firebase Firestore backend to ensure data consistency across multiple monitoring stations.
 	      
 	\item[UC-8: Automated Alert Dispatch.]
 	      The backend monitors incoming telemetry against predefined thresholds. When a violation is detected, the system automatically dispatches email alerts to the assigned Doctor and Nurse using an SMTP relay.
