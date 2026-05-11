@@ -1,1 +1,34 @@
-\chapter{AI Evaluation}
+\chapter{AI Predictive Analytics}
+\label{ch:ai_predictive}
+
+\section{Problem Formulation}
+The clinical monitoring environment requires moving from reactive monitoring (alerting on existing events) to proactive monitoring (alerting on predicted trends). The AI layer addresses this by analyzing the discrete telemetry stream $V = \{v_1, v_2, ..., v_n\}$ where each $v_i$ is a tuple of $(HR, SpO_2, T)$.
+
+\section{Statistical Anomaly Detection}
+The system implements a rolling \textbf{Z-score analysis} to identify physiological anomalies. For a window of size $k=20$, the mean $\mu$ and standard deviation $\sigma$ are calculated. A data point $x$ is flagged as an anomaly if:
+\begin{equation}
+    |Z| = \left| \frac{x - \mu}{\sigma} \right| > \tau
+\end{equation}
+where $\tau = 2.5$ is the sensitivity threshold. This allows the system to detect sudden spikes in heart rate or drops in oxygen saturation that may not yet have crossed the absolute critical thresholds.
+
+\section{Predictive Forecasting}
+To provide the 5-minute vital sign forecast, the system utilizes \textbf{Ordinary Least Squares (OLS) Linear Regression}. Given the time-series window, the model estimates the trend slope $m$:
+\begin{equation}
+    m = \frac{n\sum(xy) - \sum x \sum y}{n\sum(x^2) - (\sum x)^2}
+\end{equation}
+The predicted value at time $t+k$ is then calculated as $y_{pred} = m(t+k) + b$. This linear approximation is computationally efficient for real-time execution on the service layer while providing reliable short-term trends.
+
+\section{Clinical Interpretation Engine}
+The raw statistical results are synthesized into a clinical status through a rule-based inference engine:
+\begin{itemize}
+    \item \textbf{Stable:} No anomalies detected and forecast slope $|m| < 0.1$.
+    \item \textbf{Warning:} Anomaly detected ($|Z| > 2.0$) or forecast indicates a 10\% deviation within 5 minutes.
+    \item \textbf{Critical:} High-magnitude anomaly ($|Z| > 3.0$) or forecast indicates values crossing the critical clinical limits.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \fbox{Figure Placeholder: AI Insights UI showing the anomaly status card and the predictive trend chart.}
+    \caption{Visual representation of AI-driven clinical insights.}
+    \label{fig:ai_ui}
+\end{figure}

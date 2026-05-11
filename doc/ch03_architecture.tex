@@ -72,22 +72,11 @@ well-defined interface:
 	\item[Configuration and Globals Layer.]
 \end{description}
 
-% -------------------------------------------------------
-% TODO (Backend Team): Describe the functional decomposition
-% of the backend (API router, auth middleware, alert engine,
-% database access layer, etc.).
-% -------------------------------------------------------
-\begin{center}
-	\textit{[Backend functional decomposition to be added.]}
-\end{center}
+\subsection*{Backend Functional Decomposition}
+The backend is architected as a \textbf{Modular tRPC Router} system. The \textbf{Authentication Middleware} intercepts every procedure call to verify Firebase ID tokens. The \textbf{Clinical Management Layer} handles Firestore operations for staff and patients, while the \textbf{Notification Engine} monitors the Realtime Database to trigger SMTP-based clinical alerts. Finally, the \textbf{AI Procedure Layer} provides windowed data analysis for predictive insights.
 
-% -------------------------------------------------------
-% TODO (Web / AI Teams): Describe the functional
-% decomposition of the web dashboard and AI subsystem.
-% -------------------------------------------------------
-\begin{center}
-	\textit{[Web dashboard and AI functional decomposition to be added.]}
-\end{center}
+\subsection*{Web and AI Functional Decomposition}
+The web dashboard is decomposed into three primary functional blocks: (1) the \textbf{Telemetry Subscription Bridge}, which maintains the high-frequency link to the Realtime Database; (2) the \textbf{Clinical Visualization Engine}, which manages the rendering of Recharts-based vitals; and (3) the \textbf{Local Intelligence Module}, which executes face-recognition models for personnel tracking. The AI subsystem decomposes into a \textbf{Statistical Signal Processor} for anomaly detection and a \textbf{Trend Extrapolator} for predictive forecasting.
 
 \section{Hardware Architecture}
 
@@ -108,13 +97,13 @@ well-defined interface:
 	      AP interface (192.168.4.1) serves the configuration portal.
 \end{description}
 
-% -------------------------------------------------------
-% TODO (Backend Team): Describe the server hardware
-% (cloud VM, hosting tier, database engine, etc.).
-% -------------------------------------------------------
-\begin{center}
-	\textit{[Server hardware description to be added by the backend team.]}
-\end{center}
+\section{Cloud and Server Infrastructure}
+The system is deployed on a \textbf{Serverless Cloud Infrastructure} to ensure high availability and scalability.
+\begin{description}
+	\item[Compute Tier.] The backend is hosted as a Node.js runtime environment on Vercel, utilizing global edge functions to minimize tRPC response times.
+	\item[Persistence Tier.] Firebase Firestore serves as the document-based repository for clinical staff and patient records.
+	\item[Streaming Tier.] Firebase Realtime Database provides the low-latency JSON bus for real-time sensor telemetry.
+\end{description}
 
 \section{Software Architecture}
 
@@ -147,47 +136,39 @@ The dependency graph is strictly acyclic: \texttt{esp32.ino} includes all module
 \texttt{sensors.h/cpp} includes \texttt{globals.h}.
 No module includes another module's header directly.
 
-% -------------------------------------------------------
-% TODO (Backend Team): Describe the backend software
-% architecture (framework, router structure, middleware
-% chain, database ORM or driver, deployment environment).
-% -------------------------------------------------------
 \subsection*{Backend Software}
-\begin{center}
-	\textit{[To be completed by the backend team.]}
-\end{center}
+The service layer is implemented as a \textbf{Node.js} application using the \textbf{tRPC} framework to provide a strictly typed API. This architecture eliminates the need for manual schema synchronization between the server and client. The backend utilizes the \textbf{Firebase Admin SDK} for secure authentication verification and uses \textbf{Firestore} as the primary system of record for staff and patient data. Automated alert logic is processed in real-time by monitoring the telemetry stream against patient-specific thresholds.
 
-% -------------------------------------------------------
-% TODO (Web Dashboard Team): Describe the web application
-% architecture (framework, component tree, state management,
-% API client, chart libraries, etc.).
-% -------------------------------------------------------
+\begin{figure}[H]
+    \centering
+    \fbox{Figure Placeholder: Backend Architecture Diagram showing tRPC procedures, middleware chain, and database adapters.}
+    \caption{Service layer orchestration and API architecture.}
+    \label{fig:backend_arch}
+\end{figure}
+
 \subsection*{Web Dashboard Software}
-\begin{center}
-	\textit{[To be completed by the web dashboard team.]}
-\end{center}
+The user interface is a single-page application (SPA) built with \textbf{React} and \textbf{Vite}. It leverages the \textbf{Shadcn UI} component library for a modern, responsive clinical aesthetic. The application utilizes a reactive subscription model to the Firebase Realtime Database, ensuring that patient vitals are updated on-screen with sub-second latency. Data visualization is handled by the \textbf{Recharts} library, which renders interactive time-series plots of the patient's physiological trends.
 
-% -------------------------------------------------------
-% TODO (AI Team): Describe the AI software architecture
-% (framework, model architecture, training pipeline,
-% deployment mechanism — cloud API, ONNX, TFLite, etc.).
-% -------------------------------------------------------
 \subsection*{AI Software}
-\begin{center}
-	\textit{[To be completed by the AI team.]}
-\end{center}
+The AI prediction layer is integrated as a set of tRPC procedures that process windowed telemetry vectors. The system employs \textbf{statistical anomaly detection} using Z-score analysis to identify clinical outliers. For forecasting, the engine applies a \textbf{linear regression model} to project vital sign trends for the subsequent 5-minute interval. This predictive capability allows the dashboard to provide "AI Insights" that warn clinicians of potential instability before standard threshold alerts are triggered.
 
 \section{Processing Pipeline}
 
 The end-to-end data processing pipeline for a single sensor reading, from hardware
 to cloud record, proceeds as follows:
 
+\begin{enumerate}
+    \item \textbf{Acquisition:} The ESP32 Core 1 samples the MAX30102 and DHT22 sensors.
+    \item \textbf{Processing:} Raw photoplethysmogram (PPG) data is processed via a peak-detection algorithm to derive heart rate and SpO2.
+    \item \textbf{Persistence:} Core 0 authenticates with Firebase and pushes the JSON-serialized vitals to the Realtime Database.
+    \item \textbf{Subscription:} The Web Dashboard, listening via WebSockets, receives the update and renders it in the live monitor.
+    \item \textbf{Inference:} The Dashboard periodically sends a 20-point history to the tRPC AI endpoint for anomaly analysis and forecasting.
+    \item \textbf{Alerting:} If the backend detects a threshold violation or a high-severity AI anomaly, an email is dispatched via the SMTP relay.
+\end{enumerate}
 
-% -------------------------------------------------------
-% TODO (Backend / AI / Web Teams): Extend steps 9 onward
-% with the full downstream processing pipeline (backend
-% alert evaluation, AI inference, dashboard update cycle).
-% -------------------------------------------------------
-\begin{center}
-	\textit{[Downstream pipeline details to be added by the backend, AI, and web teams.]}
-\end{center}
+\begin{figure}[H]
+    \centering
+    \fbox{Figure Placeholder: Sequence Diagram showing the end-to-end data flow from sensor to dashboard.}
+    \caption{Real-time data processing and alerting sequence.}
+    \label{fig:data_sequence}
+\end{figure}

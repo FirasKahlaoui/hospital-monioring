@@ -8,12 +8,14 @@ sensor layer and embedded layer. Its role is to collect physiological and enviro
 measurements, apply local signal processing to derive meaningful values (BPM,
 SpO\textsubscript{2}), and transmit structured records to a cloud database.
 
-% -------------------------------------------------------
-% TODO (Backend / Full-system Team):
-% -------------------------------------------------------
-\begin{center}
-	\textit{[Full system description to be extended with backend and web layers.]}
-\end{center}
+The system follows a multi-tier architectural pattern designed for high availability and low-latency monitoring. At the edge, the \textbf{IoT Layer} (ESP32) performs continuous data acquisition. This telemetry is pushed to the \textbf{Cloud Persistence Layer} (Firebase), where Realtime Database handles live streams and Firestore manages long-term clinical records. The \textbf{Service Layer} (Node.js/tRPC) provides a type-safe interface for management operations and AI inference, while the \textbf{Application Layer} (React) delivers a high-fidelity monitoring interface for medical staff.
+
+\begin{figure}[H]
+    \centering
+    \fbox{Figure Placeholder: System Context Diagram showing the interaction between the hospital staff, the monitoring nodes, and the cloud infrastructure.}
+    \caption{System context and operational boundaries.}
+    \label{fig:system_context}
+\end{figure}
 
 \section{Use Cases}
 
@@ -39,33 +41,38 @@ The following operational scenarios define the expected system behaviour.
 	      After saving, the device reboots and applies the new configuration.
 \end{description}
 
-% -------------------------------------------------------
-% TODO (Backend Team): Add use cases for the backend:
-% e.g. UC-6: User login, UC-7: Alert configuration,
-% UC-8: Historical data query.
-% -------------------------------------------------------
 \subsection*{Backend Use Cases}
-\begin{center}
-	\textit{[To be completed by the backend team.]}
-\end{center}
 
-% -------------------------------------------------------
-% TODO (Web Dashboard Team): Add use cases for the dashboard:
-% e.g. UC-9: Real-time monitoring view, UC-10: Alert history.
-% -------------------------------------------------------
+\begin{description}
+	\item[UC-6: Staff Authentication and RBAC.]
+	      Medical staff (Doctors and Nurses) authenticate via Firebase. The system enforces Role-Based Access Control (RBAC), ensuring that clinical records are only accessible to authorized personnel assigned to the specific patient.
+	      
+	\item[UC-7: Clinical Data Synchronization.]
+	      Administrative users trigger synchronization between the local cache and the Firebase Firestore backend to ensure data consistency across multiple monitoring stations.
+	      
+	\item[UC-8: Automated Alert Dispatch.]
+	      The backend monitors incoming telemetry against predefined thresholds. When a violation is detected, the system automatically dispatches email alerts to the assigned Doctor and Nurse using an SMTP relay.
+\end{description}
+
 \subsection*{Web Dashboard Use Cases}
-\begin{center}
-	\textit{[To be completed by the web dashboard team.]}
-\end{center}
 
-% -------------------------------------------------------
-% TODO (AI Team): Add use cases for the AI subsystem:
-% e.g. UC-11: Anomaly detection, UC-12: Report generation.
-% -------------------------------------------------------
+\begin{description}
+	\item[UC-9: Real-time Telemetry Visualization.]
+	      Staff view live vitals (BPM, SpO2) and room conditions via high-frequency charts. The dashboard subscribes directly to the Realtime Database to ensure sub-second latency.
+	      
+	\item[UC-10: Personnel Tracking via Face Recognition.]
+	      Using the terminal's camera, the dashboard identifies staff members entering the room and logs their presence. It cross-references detected faces against the authorized staff directory to flag unauthorized entries.
+\end{description}
+
 \subsection*{AI Subsystem Use Cases}
-\begin{center}
-	\textit{[To be completed by the AI team.]}
-\end{center}
+
+\begin{description}
+	\item[UC-11: Clinical Anomaly Detection.]
+	      The AI layer analyzes time-series windows of patient vitals to identify statistical outliers (Z-score analysis) that may indicate sensor failure or acute physiological changes.
+	      
+	\item[UC-12: Predictive Vital Forecasting.]
+	      Using linear trend analysis, the AI subsystem projects the patient's vitals for the subsequent 5-minute interval, providing clinicians with an early-warning signal for potential instability.
+\end{description}
 
 \section{Inputs and Outputs}
 
@@ -89,15 +96,16 @@ The following operational scenarios define the expected system behaviour.
 	      server-side \texttt{timestamp}, pushed on significant change.
 \end{itemize}
 
-% -------------------------------------------------------
-% TODO (Backend / Web / AI Teams): Describe inputs and
-% outputs for each of your subsystems (API endpoints,
-% database queries, model inputs/outputs, etc.).
-% -------------------------------------------------------
 \subsection*{Backend, Web Dashboard, and AI — Inputs/Outputs}
-\begin{center}
-	\textit{[To be completed by the backend, web dashboard, and AI teams.]}
-\end{center}
+
+\begin{itemize}
+    \item \textbf{Backend Inputs:} tRPC procedure calls (JSON), Firebase ID Tokens, and Firestore document snapshots.
+    \item \textbf{Backend Outputs:} Structured clinical records (People, Patients), status confirmations, and SMTP-formatted email alerts.
+    \item \textbf{Web Inputs:} Firebase RTDB telemetry stream, Face-API descriptor vectors, and tRPC query results.
+    \item \textbf{Web Outputs:} Real-time SVG/Canvas visualizations, audit log entries, and automated toast notifications.
+    \item \textbf{AI Inputs:} 20-point windowed vectors of Heart Rate and SpO2 values.
+    \item \textbf{AI Outputs:} Probability-weighted clinical insights, status levels (Stable/Warning/Critical), and 5-minute trend forecasts.
+\end{itemize}
 
 \section{Constraints}
 
@@ -143,12 +151,6 @@ exclusively to Core~0, the two tasks never block each other.
 The sensor continues reading at its required rate regardless of how long Firebase
 takes to authenticate, upload, or reconnect — and Firebase operations proceed without
 being interrupted by sensor activity.
-% -------------------------------------------------------
-% TODO (AI Team): Add constraints for model size, inference
-% latency, and memory footprint if deploying on embedded
-% hardware, or cloud compute budget if cloud-based.
-% -------------------------------------------------------
 \subsection*{AI and Cloud Constraints}
-\begin{center}
-	\textit{[To be completed by the AI team.]}
-\end{center}
+
+The AI layer operates under \textbf{latency constraints} where inference must complete within the 1-second telemetry refresh cycle. Computation is performed on the service layer to preserve the ESP32's limited SRAM for data acquisition. The forecasting model requires a minimum clinical baseline of 5 data points to ensure statistical significance.

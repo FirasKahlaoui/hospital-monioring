@@ -81,31 +81,26 @@ where:
 % TODO (Backend Team): add alert threshold model, API
 % design rationale, and authentication flow.
 % -------------------------------------------------------
-\subsection{Backend Subsystem}
-\begin{center}
-	\textit{[To be completed by the backend team: alert logic, threshold model,
-				authentication flow, and API design rationale.]}
-\end{center}
+\subsection{Backend Subsystem Methodology}
+The backend logic is centered on a \textbf{hybrid alerting engine}. Fixed thresholds are applied to vital signs for immediate safety (e.g., HR > 120 or SpO2 < 92\%), while a statistical Z-score model identifies significant deviations from the patient's individualized baseline. The system utilizes \textbf{tRPC} to expose these operations as type-safe procedures. The \textbf{Authentication Flow} uses Firebase ID tokens verified on every request, with \textbf{Role-Based Access Control} (RBAC) determining visibility of clinical data based on staff assignments.
 
-% -------------------------------------------------------
-% TODO (Web Dashboard Team): add component architecture,
-% real-time update mechanism, chart rendering approach.
-% -------------------------------------------------------
-\subsection{Web Dashboard Subsystem}
-\begin{center}
-	\textit{[To be completed by the web dashboard team.]}
-\end{center}
+\begin{figure}[H]
+    \centering
+    \fbox{Figure Placeholder: Flowchart of the Hybrid Alerting Logic showing the parallel processing of fixed thresholds and Z-score anomalies.}
+    \caption{Clinical alert and decision logic flow.}
+    \label{fig:alert_logic}
+\end{figure}
 
-% -------------------------------------------------------
-% TODO (AI Team): add problem formulation, model
-% architecture, feature engineering, loss function,
-% training strategy.
-% -------------------------------------------------------
+\subsection{Web Dashboard Subsystem Methodology}
+The dashboard utilizes a \textbf{reactive component architecture} built with React Hooks. It maintains a real-time connection to the Firebase Realtime Database using a WebSocket-based subscription model. For security and presence tracking, the methodology includes local inference using \textbf{face-api.js} to detect and identify authorized medical personnel. Visualizations are rendered using a rolling buffer of vitals, updated every 1,000\,ms to maintain a high-fidelity trend view.
 
-\subsection{AI Subsystem}
-\begin{center}
-	\textit{[To be completed by the AI team.]}
-\end{center}
+\subsection{AI Subsystem Methodology}
+The AI subsystem formulates the monitoring task as a \textbf{time-series anomaly detection and forecasting problem}.
+\begin{itemize}
+    \item \textbf{Anomaly Detection:} Calculated via the Z-score $z = \frac{x - \mu}{\sigma}$ over a 20-point sliding window. Values exceeding a magnitude of 2.5 are flagged as clinical outliers.
+    \item \textbf{Forecasting:} Implemented via \textbf{Linear Trend Estimation}, where the next 5 intervals are projected using the slope $m$ of the current window.
+    \item \textbf{Risk Assessment:} A rule-based classifier synthesizes the anomalies and trends into a discrete clinical status (Stable, Warning, Critical).
+\end{itemize}
 
 % ============================================================
 \section{Methodology Diagram}
