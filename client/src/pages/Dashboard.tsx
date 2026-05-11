@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Camera, AlertCircle, CheckCircle, Clock, Loader2, User, UserCheck, Shield, Users, HeartPulse, Activity, Thermometer, Droplets, Settings2, BellRing, TrendingUp } from "lucide-react";
+import { Camera, AlertCircle, CheckCircle, Clock, Loader2, User, UserCheck, Shield, Users, HeartPulse, Activity, Thermometer, Droplets, Settings2, BellRing, TrendingUp, Sparkles, ChevronRight } from "lucide-react";
 import { 
   LineChart, 
   Line, 
@@ -68,6 +68,17 @@ export default function Dashboard() {
   const [currentRoomData, setCurrentRoomData] = useState<RoomData | null>(null);
   const [vitalsHistory, setVitalsHistory] = useState<VitalsData[]>([]);
   const [roomHistory, setRoomHistory] = useState<RoomData[]>([]);
+
+  const aiInsights = trpc.ai.getInsights.useQuery(
+    { 
+      patientId: selectedPatientId, 
+      vitalsHistory: vitalsHistory.slice(-20) 
+    },
+    { 
+      enabled: !!selectedPatientId && vitalsHistory.length >= 5,
+      refetchInterval: 15000 
+    }
+  );
 
   // Threshold States
   const [thresholds, setThresholds] = useState({
@@ -803,9 +814,13 @@ Please check the monitoring dashboard immediately.
                       Live Analytics
                     </CardTitle>
                   </div>
-                  <TabsList className="grid w-full md:w-[300px] grid-cols-2 bg-slate-100/50 p-1 rounded-xl">
+                  <TabsList className="grid w-full md:w-[400px] grid-cols-3 bg-slate-100/50 p-1 rounded-xl">
                     <TabsTrigger value="vitals" className="rounded-lg font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm">Vitals</TabsTrigger>
                     <TabsTrigger value="environment" className="rounded-lg font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm">Room</TabsTrigger>
+                    <TabsTrigger value="ai" className="rounded-lg font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                      AI Insights
+                    </TabsTrigger>
                   </TabsList>
                 </div>
               </CardHeader>
@@ -856,40 +871,122 @@ Please check the monitoring dashboard immediately.
                     </div>
                   </div>
                 </TabsContent>
+
                 <TabsContent value="environment" className="m-0 p-6 focus-visible:ring-0">
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2 h-[300px] w-full">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="h-[300px] w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={roomHistory}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                           <XAxis dataKey="timestamp" hide />
-                          <YAxis domain={['auto', 'auto']} stroke="#64748b" fontSize={10} axisLine={false} tickLine={false} />
+                          <YAxis domain={['dataMin - 1', 'dataMax + 1']} stroke="#64748b" fontSize={10} axisLine={false} tickLine={false} />
                           <Tooltip 
                             contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                             labelFormatter={(t) => new Date(t).toLocaleTimeString()}
                           />
-                          <Line type="monotone" dataKey="temperature" stroke="#f59e0b" strokeWidth={3} dot={false} name="Temp (°C)" />
-                          <Line type="monotone" dataKey="humidity" stroke="#0ea5e9" strokeWidth={3} dot={false} name="Humidity (%)" />
+                          <Line type="monotone" dataKey="temperature" stroke="#f43f5e" strokeWidth={3} dot={false} name="Temp (°C)" animationDuration={500} />
+                          <Line type="monotone" dataKey="humidity" stroke="#3b82f6" strokeWidth={3} dot={false} name="Humidity (%)" animationDuration={500} />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="space-y-3">
-                      <div className="p-3 rounded-2xl bg-amber-50/50 border border-amber-100">
-                        <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-0.5">Max Temp</p>
-                        <p className="text-xl font-black text-slate-900">
-                          {roomHistory.length > 0 ? Math.max(...roomHistory.map(r => r.temperature)).toFixed(1) : "--"}
-                          <span className="text-xs font-medium text-slate-500 ml-1">°C</span>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-6 rounded-3xl bg-rose-50/50 border border-rose-100 flex flex-col justify-center">
+                        <p className="text-xs font-bold text-rose-600 uppercase tracking-widest mb-1">Temperature</p>
+                        <p className="text-3xl font-black text-slate-900">
+                          {currentRoomData ? `${currentRoomData.temperature}°` : "--"}
                         </p>
+                        <p className="text-xs text-slate-500 mt-2">Optimal: 20-24°C</p>
                       </div>
-                      <div className="p-3 rounded-2xl bg-sky-50/50 border border-sky-100">
-                        <p className="text-[10px] font-bold text-sky-600 uppercase tracking-widest mb-0.5">Humidity</p>
-                        <p className="text-xl font-black text-slate-900">
-                          {currentRoomData ? currentRoomData.humidity : "--"}
-                          <span className="text-xs font-medium text-slate-500 ml-1">%</span>
+                      <div className="p-6 rounded-3xl bg-blue-50/50 border border-blue-100 flex flex-col justify-center">
+                        <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-1">Humidity</p>
+                        <p className="text-3xl font-black text-slate-900">
+                          {currentRoomData ? `${currentRoomData.humidity}%` : "--"}
                         </p>
+                        <p className="text-xs text-slate-500 mt-2">Optimal: 40-60%</p>
                       </div>
                     </div>
                   </div>
+                </TabsContent>
+
+                <TabsContent value="ai" className="m-0 p-6 focus-visible:ring-0">
+                  {selectedPatient && vitalsHistory.length >= 5 ? (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      <div className="lg:col-span-2 space-y-6">
+                        <div className="h-[250px] w-full bg-slate-50/50 rounded-2xl p-4 border border-slate-100">
+                          <p className="text-xs font-bold text-slate-500 mb-4 flex items-center gap-2">
+                            <Clock className="w-3 h-3" />
+                            5-Minute Predictive Forecast
+                          </p>
+                          <ResponsiveContainer width="100%" height="80%">
+                            <LineChart data={[
+                              ...vitalsHistory.slice(-10).map((v, i) => ({ name: `T-${10-i}`, hr: v.heartRate, spo2: v.spO2, type: 'actual' })),
+                              ...(aiInsights?.data?.forecast.heartRate.map((hr, i) => ({ 
+                                name: `T+${i+1}`, 
+                                hr, 
+                                spo2: aiInsights.data.forecast.spO2[i], 
+                                type: 'forecast' 
+                              })) || [])
+                            ]}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                              <XAxis dataKey="name" hide />
+                              <YAxis yAxisId="left" domain={['dataMin - 10', 'dataMax + 10']} hide />
+                              <Tooltip />
+                              <Line yAxisId="left" type="monotone" dataKey="hr" stroke="#6366f1" strokeWidth={3} dot={false} />
+                              <Line yAxisId="left" type="monotone" dataKey="spo2" stroke="#10b981" strokeWidth={3} dot={false} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className={`p-4 rounded-2xl border ${aiInsights?.data?.anomalies.heartRate ? 'bg-red-50 border-red-100' : 'bg-slate-50/50 border-slate-100'}`}>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">HR Variance</p>
+                            <p className={`text-lg font-bold ${aiInsights?.data?.anomalies.heartRate ? 'text-red-600' : 'text-slate-700'}`}>
+                              {aiInsights?.data?.anomalies.heartRate ? 'High Anomaly' : 'Stable'}
+                            </p>
+                          </div>
+                          <div className={`p-4 rounded-2xl border ${aiInsights?.data?.anomalies.spO2 ? 'bg-amber-50 border-amber-100' : 'bg-slate-50/50 border-slate-100'}`}>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">SpO2 Stability</p>
+                            <p className={`text-lg font-bold ${aiInsights?.data?.anomalies.spO2 ? 'text-amber-600' : 'text-slate-700'}`}>
+                              {aiInsights?.data?.anomalies.spO2 ? 'Fluctuating' : 'Consistent'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="space-y-4">
+                        <div className={`p-6 rounded-3xl border-2 ${
+                          aiInsights?.data?.status === 'critical' ? 'bg-red-50 border-red-200' : 
+                          aiInsights?.data?.status === 'warning' ? 'bg-amber-50 border-amber-200' : 
+                          'bg-indigo-50/50 border-indigo-100'
+                        }`}>
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
+                              aiInsights?.data?.status === 'critical' ? 'bg-red-500 text-white' : 
+                              aiInsights?.data?.status === 'warning' ? 'bg-amber-500 text-white' : 
+                              'bg-indigo-500 text-white'
+                            }`}>
+                              <Sparkles className="w-6 h-6" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-500 uppercase">AI Insight</p>
+                              <p className="text-lg font-black capitalize">{aiInsights?.data?.status || 'Analyzing...'}</p>
+                            </div>
+                          </div>
+                          <p className="text-sm text-slate-600 leading-relaxed font-medium">
+                            {aiInsights?.data?.insight || "Generating clinical insights..."}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-20 text-center">
+                      <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                        <Activity className="w-8 h-8 text-slate-400" />
+                      </div>
+                      <h3 className="text-lg font-bold text-slate-900">Analyzing Vitals...</h3>
+                      <p className="text-sm text-slate-500 max-w-xs mt-2">
+                        Connecting to cloud models. We need 5 more data points to establish a clinical baseline.
+                      </p>
+                    </div>
+                  )}
                 </TabsContent>
               </CardContent>
             </Card>

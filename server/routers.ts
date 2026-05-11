@@ -6,6 +6,7 @@ import { z } from "zod";
 import * as db from "./db";
 import { notifyOwner } from "./_core/notification";
 import { peopleRouter } from "./routers/people";
+import { aiRouter } from "./routers/ai";
 import { sdk } from "./_core/sdk";
 import { verifyFirebaseToken } from "./_core/firebase";
 
@@ -240,6 +241,7 @@ export const appRouter = router({
       return [];
     }),
   }),
+  ai: aiRouter,
 });
 
 export type AppRouter = typeof appRouter;
