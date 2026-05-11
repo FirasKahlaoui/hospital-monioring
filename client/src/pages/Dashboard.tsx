@@ -2,12 +2,12 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useFaceDetection } from "@/hooks/useFaceDetection";
 import { database } from "@/lib/firebase";
-import { ref, onValue } from "firebase/database";
+import { ref, onValue, query, limitToLast, orderByChild, startAt, endAt } from "firebase/database";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Camera, AlertCircle, CheckCircle, Clock, Loader2, User, UserCheck, Shield, Users, HeartPulse, Activity, Thermometer, Droplets, Settings2, BellRing, TrendingUp, Sparkles, ChevronRight } from "lucide-react";
+import { Camera, AlertCircle, CheckCircle, Clock, Loader2, User, UserCheck, Shield, Users, HeartPulse, Activity, Thermometer, Droplets, Settings2, BellRing, TrendingUp, Sparkles, ChevronRight, LayoutDashboard, History, Filter, Monitor } from "lucide-react";
 import { 
   LineChart, 
   Line, 
@@ -34,6 +34,7 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { DateRangeFilter } from "@/components/DateRangeFilter";
 
 type DetectionStatus = "idle" | "present" | "absent" | "unknown" | "unauthorized";
 
@@ -62,6 +63,7 @@ export default function Dashboard() {
   const [confidenceScore, setConfidenceScore] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentlyInRoom, setCurrentlyInRoom] = useState<{name: string, role: string, isAuthorized: boolean}[]>([]);
+  const [activeTab, setActiveTab] = useState<"monitoring" | "camera" | "logs">("monitoring");
   
   // Real-time Firebase data states
   const [currentVitals, setCurrentVitals] = useState<VitalsData | null>(null);
@@ -259,6 +261,68 @@ Please check the monitoring dashboard immediately.
 
   const selectedPatient = people?.find((p) => String(p.id) === selectedPatientId);
 
+  // Logs history
+  const [logRange, setLogRange] = useState<{start: Date | null, end: Date | null}>({start: null, end: null});
+  const [vitalsLogs, setVitalsLogs] = useState<VitalsData[]>([]);
+  const [roomLogs, setRoomLogs] = useState<RoomData[]>([]);
+
+  useEffect(() => {
+    if (!selectedPatient || activeTab !== "logs") return;
+
+    // Use Firebase queries to limit data and prevent memory leaks
+    let vitalsQuery = query(
+      ref(database, `patients/${selectedPatient.firebaseId}`),
+      orderByChild('timestamp')
+    );
+
+    if (logRange.start) {
+      vitalsQuery = query(vitalsQuery, startAt(logRange.start.getTime()));
+    }
+    if (logRange.end) {
+      vitalsQuery = query(vitalsQuery, endAt(logRange.end.getTime()));
+    }
+
+    // Always limit to the last 500 points to ensure performance
+    const limitedVitalsQuery = query(vitalsQuery, limitToLast(500));
+
+    const unsubscribeVitals = onValue(limitedVitalsQuery, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = Object.values(snapshot.val()) as VitalsData[];
+        setVitalsLogs(data.sort((a, b) => a.timestamp - b.timestamp));
+      } else {
+        setVitalsLogs([]);
+      }
+    });
+
+    let roomQuery = query(
+      ref(database, `rooms/${selectedPatient.roomId}`),
+      orderByChild('timestamp')
+    );
+
+    if (logRange.start) {
+      roomQuery = query(roomQuery, startAt(logRange.start.getTime()));
+    }
+    if (logRange.end) {
+      roomQuery = query(roomQuery, endAt(logRange.end.getTime()));
+    }
+
+    const limitedRoomQuery = query(roomQuery, limitToLast(500));
+
+    const unsubscribeRoom = onValue(limitedRoomQuery, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = Object.values(snapshot.val()) as RoomData[];
+        setRoomLogs(data.sort((a, b) => a.timestamp - b.timestamp));
+      } else {
+        setRoomLogs([]);
+      }
+    });
+
+    return () => {
+      unsubscribeVitals();
+      unsubscribeRoom();
+    };
+  }, [selectedPatient?.id, activeTab, logRange]);
+
   // Firebase Realtime Subscriptions
   useEffect(() => {
     if (!selectedPatient || !selectedPatient.firebaseId) {
@@ -385,7 +449,7 @@ Please check the monitoring dashboard immediately.
           const seenIds = new Set<string>();
           const seenUnknown = { global: false };
 
-          const ctx = canvasRef.current.getContext("2d");
+          const ctx = canvasRef.current.getContext("2d", { willReadFrequently: true });
           if (ctx) {
             canvasRef.current.width = videoRef.current.videoWidth;
             canvasRef.current.height = videoRef.current.videoHeight;
@@ -551,13 +615,13 @@ Please check the monitoring dashboard immediately.
   }, []);
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+    <div className="space-y-6 max-w-[1400px] mx-auto pb-10">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Patient Dashboard</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Health Monitor</h1>
           <p className="text-slate-500 mt-1 flex items-center gap-2">
             <Shield className="w-4 h-4 text-indigo-500" />
-            Unified Monitoring & AI Face Recognition
+            Advanced Clinical Support System
           </p>
         </div>
 
@@ -565,7 +629,7 @@ Please check the monitoring dashboard immediately.
           {(user?.role === "admin" || user?.role === "doctor") && (
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="outline" className="h-12 gap-2 border-slate-200 hover:bg-slate-50 shadow-sm transition-all active:scale-95">
+                <Button variant="outline" className="h-12 gap-2 border-slate-200 hover:bg-slate-50 shadow-sm transition-all active:scale-95 rounded-2xl">
                   <Settings2 className="w-4 h-4 text-slate-500" />
                   <span className="font-semibold text-slate-700">Thresholds</span>
                 </Button>
@@ -653,446 +717,511 @@ Please check the monitoring dashboard immediately.
         </div>
       </div>
 
-      {/* Stats Cards Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Heart Rate */}
-        <Card className="bg-white border-slate-100 shadow-sm relative overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-bold text-slate-500">Heart Rate</CardTitle>
-            <HeartPulse className={`w-4 h-4 ${currentVitals && currentVitals.heartRate > 100 ? 'text-red-500 animate-pulse' : 'text-slate-400'}`} />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-slate-900">
-              {currentVitals ? `${currentVitals.heartRate}` : "--"}
-              <span className="text-sm font-medium text-slate-500 ml-1">bpm</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* SpO2 */}
-        <Card className="bg-white border-slate-100 shadow-sm relative overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-bold text-slate-500">SpO2</CardTitle>
-            <Activity className="w-4 h-4 text-slate-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-slate-900">
-              {currentVitals ? `${currentVitals.spO2}` : "--"}
-              <span className="text-sm font-medium text-slate-500 ml-1">%</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Temperature */}
-        <Card className="bg-white border-slate-100 shadow-sm relative overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-bold text-slate-500">Room Temp</CardTitle>
-            <Thermometer className="w-4 h-4 text-slate-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-slate-900">
-              {currentRoomData ? `${currentRoomData.temperature}` : "--"}
-              <span className="text-sm font-medium text-slate-500 ml-1">°C</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Humidity */}
-        <Card className="bg-white border-slate-100 shadow-sm relative overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-bold text-slate-500">Room Humidity</CardTitle>
-            <Droplets className="w-4 h-4 text-slate-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-slate-900">
-              {currentRoomData ? `${currentRoomData.humidity}` : "--"}
-              <span className="text-sm font-medium text-slate-500 ml-1">%</span>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Tabs Navigation */}
+      <div className="flex items-center gap-2 bg-white/60 backdrop-blur-md p-1.5 rounded-2xl border border-slate-200/60 w-fit shadow-sm sticky top-4 z-50">
+        <Button 
+          variant={activeTab === "monitoring" ? "default" : "ghost"}
+          className={`rounded-xl px-6 h-11 font-bold transition-all ${activeTab === "monitoring" ? 'bg-indigo-600 shadow-lg shadow-indigo-200 hover:bg-indigo-700' : 'text-slate-500 hover:bg-slate-100'}`}
+          onClick={() => setActiveTab("monitoring")}
+        >
+          <Monitor className="w-4 h-4 mr-2" /> Real-time Monitoring
+        </Button>
+        <Button 
+          variant={activeTab === "camera" ? "default" : "ghost"}
+          className={`rounded-xl px-6 h-11 font-bold transition-all ${activeTab === "camera" ? 'bg-indigo-600 shadow-lg shadow-indigo-200 hover:bg-indigo-700' : 'text-slate-500 hover:bg-slate-100'}`}
+          onClick={() => setActiveTab("camera")}
+        >
+          <Camera className="w-4 h-4 mr-2" /> Camera Feed
+        </Button>
+        <Button 
+          variant={activeTab === "logs" ? "default" : "ghost"}
+          className={`rounded-xl px-6 h-11 font-bold transition-all ${activeTab === "logs" ? 'bg-indigo-600 shadow-lg shadow-indigo-200 hover:bg-indigo-700' : 'text-slate-500 hover:bg-slate-100'}`}
+          onClick={() => setActiveTab("logs")}
+        >
+          <History className="w-4 h-4 mr-2" /> Historical Logs
+        </Button>
       </div>
 
-      {/* Main Content Grid */}
-      <div className="grid gap-6 lg:grid-cols-12">
-        {/* Left Column: Live Monitoring & Analytics */}
-        <div className="lg:col-span-8 space-y-6">
-          {/* Camera Feed Card */}
-          <Card className="border-none shadow-xl overflow-hidden bg-slate-900 ring-1 ring-slate-800 rounded-3xl">
-            <div className="relative aspect-video group">
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                className="w-full h-full object-cover"
-              />
-              <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-              
-              {!isStreaming && (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-900/90 backdrop-blur-sm">
-                  <div className="text-center animate-in fade-in zoom-in duration-500">
-                    <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 ring-4 ring-indigo-500/20">
-                      <Camera className="w-10 h-10 text-indigo-400" />
-                    </div>
-                    <h3 className="text-xl font-bold text-white mb-2">Camera Offline</h3>
-                    <p className="text-slate-400 max-w-xs mx-auto">Select a patient and start monitoring to activate the neural recognition engine.</p>
-                  </div>
-                </div>
-              )}
-
-              {isStreaming && (
-                <div className="absolute top-4 left-4 flex gap-2">
-                  <div className="bg-black/60 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 border border-white/10">
-                    <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                    LIVE FEED
-                  </div>
-                  {isProcessing && (
-                    <div className="bg-indigo-500/80 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-2">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      PROCESSING
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            
-            <div className="p-6 bg-white border-t border-slate-100">
-              <div className="flex flex-col sm:flex-row gap-4 items-end">
-                <div className="flex-1 w-full">
-                  <label className="text-xs font-bold text-slate-500 mb-2 block uppercase tracking-tight">Active Patient Selection</label>
-                  <Select value={selectedPatientId} onValueChange={setSelectedPatientId} disabled={isStreaming}>
-                    <SelectTrigger className="h-12 border-slate-200 focus:ring-indigo-500 rounded-xl">
-                      <SelectValue placeholder="Select a patient to begin monitoring..." />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      {people?.filter(p => p.role === 'patient').map((patient) => (
-                        <SelectItem key={patient.id} value={String(patient.id)}>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold">{patient.name}</span>
-                            <span className="text-xs text-slate-400">— Room {patient.roomId}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex gap-2 w-full sm:w-auto">
-                  <Button
-                    onClick={startCamera}
-                    disabled={isStreaming || !selectedPatientId || !modelsLoaded || !selectedPatient?.enrolledFaceDescriptor}
-                    className="h-12 px-8 bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all active:scale-95 rounded-xl"
-                  >
-                    <Camera className="w-4 h-4 mr-2" />
-                    Initialize
-                  </Button>
-                  <Button
-                    onClick={stopCamera}
-                    disabled={!isStreaming}
-                    variant="outline"
-                    className="h-12 px-6 border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl"
-                  >
-                    Stop
-                  </Button>
+      {/* Real-time Monitoring Tab */}
+      {activeTab === "monitoring" && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Stats Cards Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="bg-white border-none shadow-sm relative overflow-hidden rounded-3xl p-6 ring-1 ring-slate-100">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Heart Rate</p>
+                <div className={`p-2 rounded-xl ${currentVitals && currentVitals.heartRate > thresholds.hrMax ? 'bg-rose-100 text-rose-600' : 'bg-indigo-50 text-indigo-500'}`}>
+                  <HeartPulse className={`w-5 h-5 ${currentVitals && currentVitals.heartRate > thresholds.hrMax ? 'animate-pulse' : ''}`} />
                 </div>
               </div>
-              {!selectedPatient?.enrolledFaceDescriptor && selectedPatientId && (
-                <p className="mt-3 text-sm text-red-500 flex items-center gap-1 font-medium">
-                  <AlertCircle className="w-4 h-4" />
-                  Biometric data missing.
-                </p>
-              )}
-            </div>
-          </Card>
+              <div className="text-4xl font-black text-slate-900">
+                {currentVitals ? `${currentVitals.heartRate}` : "--"}
+                <span className="text-sm font-bold text-slate-400 ml-1.5">BPM</span>
+              </div>
+            </Card>
 
-          {/* Analytics Card */}
-          <Tabs defaultValue="vitals" className="w-full">
-            <Card className="border-none shadow-xl bg-white overflow-hidden rounded-3xl">
-              <CardHeader className="border-b border-slate-50 bg-slate-50/30 pb-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <CardTitle className="text-xl font-black text-slate-900 flex items-center gap-2">
-                      <TrendingUp className="w-5 h-5 text-indigo-500" />
-                      Live Analytics
-                    </CardTitle>
-                  </div>
-                  <TabsList className="grid w-full md:w-[400px] grid-cols-3 bg-slate-100/50 p-1 rounded-xl">
-                    <TabsTrigger value="vitals" className="rounded-lg font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm">Vitals</TabsTrigger>
-                    <TabsTrigger value="environment" className="rounded-lg font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm">Room</TabsTrigger>
-                    <TabsTrigger value="ai" className="rounded-lg font-bold data-[state=active]:bg-white data-[state=active]:shadow-sm flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                      AI Insights
-                    </TabsTrigger>
-                  </TabsList>
+            <Card className="bg-white border-none shadow-sm relative overflow-hidden rounded-3xl p-6 ring-1 ring-slate-100">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">SpO2 Level</p>
+                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-500">
+                  <Activity className="w-5 h-5" />
                 </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <TabsContent value="vitals" className="m-0 p-6 focus-visible:ring-0">
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2 h-[300px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={vitalsHistory}>
-                          <defs>
-                            <linearGradient id="colorHr" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
-                              <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                            </linearGradient>
-                            <linearGradient id="colorSpo2" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
-                              <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis dataKey="timestamp" hide />
-                          <YAxis yAxisId="left" domain={[40, 160]} stroke="#64748b" fontSize={10} axisLine={false} tickLine={false} />
-                          <YAxis yAxisId="right" orientation="right" domain={[85, 100]} stroke="#10b981" fontSize={10} axisLine={false} tickLine={false} />
-                          <Tooltip 
-                            contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                            labelFormatter={(t) => new Date(t).toLocaleTimeString()}
-                          />
-                          <Area yAxisId="left" type="monotone" dataKey="heartRate" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorHr)" name="HR (BPM)" animationDuration={500} />
-                          <Area yAxisId="right" type="monotone" dataKey="spO2" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorSpo2)" name="SpO2 (%)" animationDuration={500} />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="space-y-3">
-                      <div className="p-3 rounded-2xl bg-indigo-50/50 border border-indigo-100">
-                        <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-0.5">Avg HR</p>
-                        <p className="text-xl font-black text-slate-900">
-                          {vitalsHistory.length > 0 ? (vitalsHistory.reduce((acc, v) => acc + v.heartRate, 0) / vitalsHistory.length).toFixed(0) : "--"} 
-                          <span className="text-xs font-medium text-slate-500 ml-1">BPM</span>
-                        </p>
-                      </div>
-                      <div className="p-3 rounded-2xl bg-emerald-50/50 border border-emerald-100">
-                        <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-0.5">Avg SpO2</p>
-                        <p className="text-xl font-black text-slate-900">
-                          {vitalsHistory.length > 0 ? (vitalsHistory.reduce((acc, v) => acc + v.spO2, 0) / vitalsHistory.length).toFixed(1) : "--"} 
-                          <span className="text-xs font-medium text-slate-500 ml-1">%</span>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
+              </div>
+              <div className="text-4xl font-black text-slate-900">
+                {currentVitals ? `${currentVitals.spO2}` : "--"}
+                <span className="text-sm font-bold text-slate-400 ml-1.5">%</span>
+              </div>
+            </Card>
 
-                <TabsContent value="environment" className="m-0 p-6 focus-visible:ring-0">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="h-[300px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={roomHistory}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis dataKey="timestamp" hide />
-                          <YAxis domain={['dataMin - 1', 'dataMax + 1']} stroke="#64748b" fontSize={10} axisLine={false} tickLine={false} />
-                          <Tooltip 
-                            contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                            labelFormatter={(t) => new Date(t).toLocaleTimeString()}
-                          />
-                          <Line type="monotone" dataKey="temperature" stroke="#f43f5e" strokeWidth={3} dot={false} name="Temp (°C)" animationDuration={500} />
-                          <Line type="monotone" dataKey="humidity" stroke="#3b82f6" strokeWidth={3} dot={false} name="Humidity (%)" animationDuration={500} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-6 rounded-3xl bg-rose-50/50 border border-rose-100 flex flex-col justify-center">
-                        <p className="text-xs font-bold text-rose-600 uppercase tracking-widest mb-1">Temperature</p>
-                        <p className="text-3xl font-black text-slate-900">
-                          {currentRoomData ? `${currentRoomData.temperature}°` : "--"}
-                        </p>
-                        <p className="text-xs text-slate-500 mt-2">Optimal: 20-24°C</p>
-                      </div>
-                      <div className="p-6 rounded-3xl bg-blue-50/50 border border-blue-100 flex flex-col justify-center">
-                        <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-1">Humidity</p>
-                        <p className="text-3xl font-black text-slate-900">
-                          {currentRoomData ? `${currentRoomData.humidity}%` : "--"}
-                        </p>
-                        <p className="text-xs text-slate-500 mt-2">Optimal: 40-60%</p>
-                      </div>
-                    </div>
-                  </div>
-                </TabsContent>
+            <Card className="bg-white border-none shadow-sm relative overflow-hidden rounded-3xl p-6 ring-1 ring-slate-100">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Room Temp</p>
+                <div className="p-2 rounded-xl bg-amber-50 text-amber-500">
+                  <Thermometer className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="text-4xl font-black text-slate-900">
+                {currentRoomData ? `${currentRoomData.temperature}` : "--"}
+                <span className="text-sm font-bold text-slate-400 ml-1.5">°C</span>
+              </div>
+            </Card>
 
-                <TabsContent value="ai" className="m-0 p-6 focus-visible:ring-0">
-                  {selectedPatient && vitalsHistory.length >= 5 ? (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      <div className="lg:col-span-2 space-y-6">
-                        <div className="h-[250px] w-full bg-slate-50/50 rounded-2xl p-4 border border-slate-100">
-                          <p className="text-xs font-bold text-slate-500 mb-4 flex items-center gap-2">
-                            <Clock className="w-3 h-3" />
-                            5-Minute Predictive Forecast
-                          </p>
-                          <ResponsiveContainer width="100%" height="80%">
-                            <LineChart data={[
-                              ...vitalsHistory.slice(-10).map((v, i) => ({ name: `T-${10-i}`, hr: v.heartRate, spo2: v.spO2, type: 'actual' })),
-                              ...(aiInsights?.data?.forecast.heartRate.map((hr, i) => ({ 
-                                name: `T+${i+1}`, 
-                                hr, 
-                                spo2: aiInsights.data.forecast.spO2[i], 
-                                type: 'forecast' 
-                              })) || [])
-                            ]}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                              <XAxis dataKey="name" hide />
-                              <YAxis yAxisId="left" domain={['dataMin - 10', 'dataMax + 10']} hide />
-                              <Tooltip />
-                              <Line yAxisId="left" type="monotone" dataKey="hr" stroke="#6366f1" strokeWidth={3} dot={false} />
-                              <Line yAxisId="left" type="monotone" dataKey="spo2" stroke="#10b981" strokeWidth={3} dot={false} />
-                            </LineChart>
-                          </ResponsiveContainer>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className={`p-4 rounded-2xl border ${aiInsights?.data?.anomalies.heartRate ? 'bg-red-50 border-red-100' : 'bg-slate-50/50 border-slate-100'}`}>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">HR Variance</p>
-                            <p className={`text-lg font-bold ${aiInsights?.data?.anomalies.heartRate ? 'text-red-600' : 'text-slate-700'}`}>
-                              {aiInsights?.data?.anomalies.heartRate ? 'High Anomaly' : 'Stable'}
+            <Card className="bg-white border-none shadow-sm relative overflow-hidden rounded-3xl p-6 ring-1 ring-slate-100">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Humidity</p>
+                <div className="p-2 rounded-xl bg-blue-50 text-blue-500">
+                  <Droplets className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="text-4xl font-black text-slate-900">
+                {currentRoomData ? `${currentRoomData.humidity}` : "--"}
+                <span className="text-sm font-bold text-slate-400 ml-1.5">%</span>
+              </div>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-8 space-y-6">
+              <Tabs defaultValue="vitals" className="w-full">
+                <Card className="border-none shadow-xl bg-white overflow-hidden rounded-3xl">
+                  <CardHeader className="border-b border-slate-50 bg-slate-50/30 p-6">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <CardTitle className="text-xl font-black text-slate-900 flex items-center gap-2">
+                        <TrendingUp className="w-6 h-6 text-indigo-500" />
+                        Patient Analytics
+                      </CardTitle>
+                      <TabsList className="bg-slate-100/50 p-1 rounded-xl w-full md:w-auto">
+                        <TabsTrigger value="vitals" className="rounded-lg font-bold">Vitals</TabsTrigger>
+                        <TabsTrigger value="room" className="rounded-lg font-bold">Room</TabsTrigger>
+                        <TabsTrigger value="ai" className="rounded-lg font-bold flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-500" /> AI Insights
+                        </TabsTrigger>
+                      </TabsList>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <TabsContent value="vitals" className="m-0 focus-visible:ring-0">
+                      <div className="h-[350px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={vitalsHistory}>
+                            <defs>
+                              <linearGradient id="colorHr" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
+                                <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                              </linearGradient>
+                              <linearGradient id="colorSpo2" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
+                                <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis dataKey="timestamp" hide />
+                            <YAxis yAxisId="left" domain={[40, 160]} stroke="#6366f1" fontSize={10} axisLine={false} tickLine={false} />
+                            <YAxis yAxisId="right" orientation="right" domain={[85, 100]} stroke="#10b981" fontSize={10} axisLine={false} tickLine={false} />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                              labelFormatter={(t) => new Date(t).toLocaleTimeString()}
+                            />
+                            <Area yAxisId="left" type="monotone" dataKey="heartRate" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorHr)" name="Heart Rate" animationDuration={500} />
+                            <Area yAxisId="right" type="monotone" dataKey="spO2" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorSpo2)" name="SpO2" animationDuration={500} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="room" className="m-0 focus-visible:ring-0">
+                      <div className="h-[350px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={roomHistory}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis dataKey="timestamp" hide />
+                            <YAxis yAxisId="left" domain={[15, 45]} stroke="#f43f5e" fontSize={10} axisLine={false} tickLine={false} />
+                            <YAxis yAxisId="right" orientation="right" domain={[0, 100]} stroke="#3b82f6" fontSize={10} axisLine={false} tickLine={false} />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                              labelFormatter={(t) => new Date(t).toLocaleTimeString()}
+                            />
+                            <Line yAxisId="left" type="monotone" dataKey="temperature" stroke="#f43f5e" strokeWidth={4} dot={false} name="Temp (°C)" animationDuration={1000} />
+                            <Line yAxisId="right" type="monotone" dataKey="humidity" stroke="#3b82f6" strokeWidth={4} dot={false} name="Humidity (%)" animationDuration={1000} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="ai" className="m-0 focus-visible:ring-0">
+                      {selectedPatient && vitalsHistory.length >= 5 ? (
+                        <div className="space-y-6">
+                          <div className={`p-6 rounded-3xl border-2 transition-all ${
+                            aiInsights?.data?.status === 'critical' ? 'bg-red-50 border-red-100 shadow-sm shadow-red-100' : 
+                            aiInsights?.data?.status === 'warning' ? 'bg-amber-50 border-amber-100 shadow-sm shadow-amber-100' : 
+                            'bg-indigo-50 border-indigo-100 shadow-sm shadow-indigo-100'
+                          }`}>
+                            <div className="flex items-center gap-4 mb-4">
+                              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg ${
+                                aiInsights?.data?.status === 'critical' ? 'bg-red-500 shadow-red-200' : 
+                                aiInsights?.data?.status === 'warning' ? 'bg-amber-500 shadow-amber-200' : 
+                                'bg-indigo-500 shadow-indigo-200'
+                              }`}>
+                                <Sparkles className="w-7 h-7" />
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Clinical Analysis</p>
+                                <p className="text-xl font-black capitalize">{aiInsights?.data?.status || 'Analyzing...'}</p>
+                              </div>
+                            </div>
+                            <p className="text-base text-slate-600 leading-relaxed font-semibold italic">
+                              "{aiInsights?.data?.insight || "Generating clinical insights..."}"
                             </p>
                           </div>
-                          <div className={`p-4 rounded-2xl border ${aiInsights?.data?.anomalies.spO2 ? 'bg-amber-50 border-amber-100' : 'bg-slate-50/50 border-slate-100'}`}>
-                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">SpO2 Stability</p>
-                            <p className={`text-lg font-bold ${aiInsights?.data?.anomalies.spO2 ? 'text-amber-600' : 'text-slate-700'}`}>
-                              {aiInsights?.data?.anomalies.spO2 ? 'Fluctuating' : 'Consistent'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="space-y-4">
-                        <div className={`p-6 rounded-3xl border-2 ${
-                          aiInsights?.data?.status === 'critical' ? 'bg-red-50 border-red-200' : 
-                          aiInsights?.data?.status === 'warning' ? 'bg-amber-50 border-amber-200' : 
-                          'bg-indigo-50/50 border-indigo-100'
-                        }`}>
-                          <div className="flex items-center gap-3 mb-4">
-                            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${
-                              aiInsights?.data?.status === 'critical' ? 'bg-red-500 text-white' : 
-                              aiInsights?.data?.status === 'warning' ? 'bg-amber-500 text-white' : 
-                              'bg-indigo-500 text-white'
-                            }`}>
-                              <Sparkles className="w-6 h-6" />
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Predictive Trend</p>
+                              <div className="flex items-center gap-2">
+                                <TrendingUp className="w-4 h-4 text-indigo-500" />
+                                <span className="font-bold text-slate-700">Stable Baseline</span>
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-xs font-bold text-slate-500 uppercase">AI Insight</p>
-                              <p className="text-lg font-black capitalize">{aiInsights?.data?.status || 'Analyzing...'}</p>
+                            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Anomaly Detection</p>
+                              <div className="flex items-center gap-2">
+                                <Shield className="w-4 h-4 text-emerald-500" />
+                                <span className="font-bold text-slate-700">No Anomalies</span>
+                              </div>
                             </div>
                           </div>
-                          <p className="text-sm text-slate-600 leading-relaxed font-medium">
-                            {aiInsights?.data?.insight || "Generating clinical insights..."}
-                          </p>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-20 text-center">
+                          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                            <Activity className="w-8 h-8 text-slate-400" />
+                          </div>
+                          <h3 className="text-lg font-bold text-slate-900">Baseline Analysis</h3>
+                          <p className="text-sm text-slate-500 max-w-xs mt-2 font-medium"> Establish a 5-minute data baseline to activate AI diagnostics.</p>
+                        </div>
+                      )}
+                    </TabsContent>
+                  </CardContent>
+                </Card>
+              </Tabs>
+            </div>
+
+            {/* Right Column: Presence & Room Staff */}
+            <div className="lg:col-span-4 space-y-6">
+              <Card className={`border-none shadow-lg transition-all duration-500 rounded-3xl ${
+                detectionStatus === 'present' ? 'bg-emerald-50 ring-1 ring-emerald-200' : 
+                detectionStatus === 'absent' && isStreaming ? 'bg-amber-50 ring-1 ring-amber-200' : 'bg-white ring-1 ring-slate-100'
+              }`}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs font-bold uppercase tracking-widest text-slate-500">Patient Status</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-4 py-2">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${
+                      detectionStatus === 'present' ? 'bg-emerald-500 text-white shadow-xl shadow-emerald-200' :
+                      detectionStatus === 'absent' && isStreaming ? 'bg-amber-500 text-white shadow-xl shadow-amber-200' :
+                      'bg-slate-100 text-slate-400'
+                    }`}>
+                      {detectionStatus === 'present' ? <CheckCircle className="w-7 h-7" /> :
+                       detectionStatus === 'absent' && isStreaming ? <Clock className="w-7 h-7" /> :
+                       <Camera className="w-7 h-7" />}
                     </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-20 text-center">
-                      <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                        <Activity className="w-8 h-8 text-slate-400" />
-                      </div>
-                      <h3 className="text-lg font-bold text-slate-900">Analyzing Vitals...</h3>
-                      <p className="text-sm text-slate-500 max-w-xs mt-2">
-                        Connecting to cloud models. We need 5 more data points to establish a clinical baseline.
+                    <div>
+                      <h4 className="text-2xl font-black text-slate-900 leading-tight">
+                        {detectionStatus === 'present' ? "Present" :
+                         detectionStatus === 'absent' && isStreaming ? "Absent" : "Standby"}
+                      </h4>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        {isStreaming ? `Monitoring Room ${selectedPatient?.roomId || '...'}` : "Camera Standby"}
                       </p>
                     </div>
-                  )}
-                </TabsContent>
-              </CardContent>
-            </Card>
-          </Tabs>
-        </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-        {/* Right Column: Status & Activity */}
-        <div className="lg:col-span-4 space-y-6">
-          <Card className={`border-none shadow-lg transition-all duration-500 rounded-3xl ${
-            detectionStatus === 'present' ? 'bg-emerald-50 ring-1 ring-emerald-200' : 
-            detectionStatus === 'absent' && isStreaming ? 'bg-amber-50 ring-1 ring-amber-200' : 'bg-white'
-          }`}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest text-slate-500">Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4 py-2">
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${
-                  detectionStatus === 'present' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' :
-                  detectionStatus === 'absent' && isStreaming ? 'bg-amber-500 text-white shadow-lg shadow-amber-200' :
-                  'bg-slate-100 text-slate-400'
-                }`}>
-                  {detectionStatus === 'present' ? <CheckCircle className="w-7 h-7" /> :
-                   detectionStatus === 'absent' && isStreaming ? <Clock className="w-7 h-7" /> :
-                   <Camera className="w-7 h-7" />}
-                </div>
-                <div>
-                  <h4 className="text-xl font-black text-slate-900 leading-tight">
-                    {detectionStatus === 'present' ? "Present" :
-                     detectionStatus === 'absent' && isStreaming ? "Absent" : "Standby"}
-                  </h4>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-                    {isStreaming ? `Room ${selectedPatient?.roomId || '...'}` : "Inactive"}
-                  </p>
+              <Card className="border-none shadow-lg rounded-3xl ring-1 ring-slate-100">
+                <CardHeader className="pb-3 border-b border-slate-50">
+                  <CardTitle className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center justify-between">
+                    Room Occupancy
+                    <Users className="w-4 h-4 text-indigo-500" />
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4 px-4">
+                  <div className="space-y-3">
+                    {currentlyInRoom.length > 0 ? (
+                      currentlyInRoom.map((p, i) => (
+                        <div key={i} className={`flex items-center gap-3 p-3.5 rounded-2xl border transition-all animate-in slide-in-from-right-2 duration-300 ${
+                          p.isAuthorized ? 'bg-slate-50/50 border-slate-100' : 'bg-rose-50 border-rose-100'
+                        }`} style={{animationDelay: `${i * 100}ms`}}>
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-sm ${
+                            !p.isAuthorized ? 'bg-rose-500' :
+                            p.role === 'doctor' ? 'bg-indigo-500' : 
+                            p.role === 'nurse' ? 'bg-emerald-500' : 
+                            p.role === 'patient' ? 'bg-slate-900' :
+                            'bg-slate-400'
+                          }`}>
+                            {!p.isAuthorized ? <AlertCircle className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <p className={`text-sm font-bold ${p.isAuthorized ? 'text-slate-900' : 'text-rose-900'}`}>{p.name}</p>
+                              {!p.isAuthorized && (
+                                <Badge variant="destructive" className="text-[8px] h-4 px-1 rounded-sm uppercase font-black">Warning</Badge>
+                              )}
+                            </div>
+                            <p className="text-[10px] font-bold uppercase tracking-tighter text-slate-400">{p.role}</p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-12 opacity-30">
+                        <User className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+                        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Room Vacant</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Camera Feed Tab (Always mounted but hidden when not active) */}
+      <div className={`animate-in fade-in slide-in-from-bottom-4 duration-500 ${activeTab === "camera" ? 'block' : 'hidden'}`}>
+        <Card className="border-none shadow-2xl overflow-hidden bg-slate-900 ring-1 ring-slate-800 rounded-[2.5rem]">
+          <div className="relative aspect-video lg:aspect-[21/9] group">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              className="w-full h-full object-cover"
+            />
+            <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+            
+            {!isStreaming && (
+              <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80 backdrop-blur-md">
+                <div className="text-center">
+                  <div className="w-24 h-24 bg-slate-800/50 rounded-3xl flex items-center justify-center mx-auto mb-8 ring-1 ring-white/10 shadow-2xl">
+                    <Camera className="w-12 h-12 text-indigo-400" />
+                  </div>
+                  <h3 className="text-2xl font-black text-white mb-3">Feed Inactive</h3>
+                  <p className="text-slate-400 max-w-sm mx-auto font-medium">Connect to the room camera to enable AI-powered patient monitoring and security recognition.</p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            )}
 
-          <Card className="border-none shadow-lg rounded-3xl">
-            <CardHeader className="pb-2 border-b border-slate-50">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest text-slate-500 flex justify-between">
-                Who's In Room
-                <Users className="w-4 h-4" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <div className="space-y-3">
-                {currentlyInRoom.length > 0 ? (
-                  currentlyInRoom.map((p, i) => (
-                    <div key={i} className={`flex items-center gap-3 p-3 rounded-2xl border transition-all animate-in slide-in-from-right-2 duration-300 ${
-                      p.isAuthorized ? 'bg-slate-50 border-slate-100' : 'bg-rose-50 border-rose-100'
-                    }`} style={{animationDelay: `${i * 100}ms`}}>
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white ${
-                        !p.isAuthorized ? 'bg-rose-500' :
-                        p.role === 'doctor' ? 'bg-blue-500' : 
-                        p.role === 'nurse' ? 'bg-teal-500' : 
-                        p.role === 'patient' ? 'bg-emerald-500' :
-                        'bg-slate-500'
-                      }`}>
-                        {!p.isAuthorized ? <AlertCircle className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <p className={`text-sm font-bold ${p.isAuthorized ? 'text-slate-900' : 'text-rose-900'}`}>{p.name}</p>
-                          {!p.isAuthorized && (
-                            <Badge variant="destructive" className="text-[8px] h-4 px-1 rounded-sm uppercase tracking-tighter">Unauthorized</Badge>
-                          )}
-                        </div>
-                        <p className="text-[10px] font-bold uppercase tracking-tighter text-slate-400">{p.role}</p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8 opacity-20">
-                    <User className="w-8 h-8 mx-auto mb-2" />
-                    <p className="text-xs font-semibold">Empty</p>
+            {isStreaming && (
+              <div className="absolute top-6 left-6 flex gap-3">
+                <div className="bg-black/60 backdrop-blur-xl text-white px-4 py-2 rounded-2xl text-[10px] font-black tracking-widest flex items-center gap-2.5 border border-white/10 shadow-2xl">
+                  <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]" />
+                  LIVE TRANSMISSION
+                </div>
+                {isProcessing && (
+                  <div className="bg-indigo-600/80 backdrop-blur-xl text-white px-4 py-2 rounded-2xl text-[10px] font-black tracking-widest flex items-center gap-2.5 border border-indigo-400/20 shadow-2xl">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    AI ENGINE ACTIVE
                   </div>
                 )}
               </div>
-            </CardContent>
+            )}
+          </div>
+          
+          <div className="p-8 bg-white border-t border-slate-100">
+            <div className="flex flex-col lg:flex-row gap-6 items-end">
+              <div className="flex-1 w-full space-y-3">
+                <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Patient Monitor Target</label>
+                <Select value={selectedPatientId} onValueChange={setSelectedPatientId} disabled={isStreaming}>
+                  <SelectTrigger className="h-14 border-slate-200 focus:ring-indigo-500 rounded-2xl shadow-sm bg-slate-50/50">
+                    <SelectValue placeholder="Choose a patient to initialize feed..." />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl border-slate-100 shadow-2xl p-2">
+                    {people?.filter(p => p.role === 'patient').map((patient) => (
+                      <SelectItem key={patient.id} value={String(patient.id)} className="rounded-xl h-12">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs">
+                            {patient.roomId}
+                          </div>
+                          <span className="font-bold text-slate-700">{patient.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-3 w-full lg:w-auto">
+                <Button
+                  onClick={startCamera}
+                  disabled={isStreaming || !selectedPatientId || !modelsLoaded || !selectedPatient?.enrolledFaceDescriptor}
+                  className="h-14 px-10 bg-slate-900 hover:bg-black shadow-xl shadow-slate-200 transition-all active:scale-95 rounded-2xl font-black tracking-wide"
+                >
+                  <Camera className="w-5 h-5 mr-3" />
+                  Link Stream
+                </Button>
+                <Button
+                  onClick={stopCamera}
+                  disabled={!isStreaming}
+                  variant="outline"
+                  className="h-14 px-8 border-slate-200 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-100 text-slate-600 rounded-2xl font-bold transition-all"
+                >
+                  Terminate
+                </Button>
+              </div>
+            </div>
+            {!selectedPatient?.enrolledFaceDescriptor && selectedPatientId && (
+              <div className="mt-6 p-4 bg-rose-50 rounded-2xl border border-rose-100 flex items-center gap-3 text-rose-600 animate-in fade-in slide-in-from-top-2">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <p className="text-sm font-bold">Biometric Profile Missing: This patient cannot be recognized until a facial scan is enrolled in the Patients section.</p>
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
+
+      {/* Historical Logs Tab */}
+      {activeTab === "logs" && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <Card className="border-none shadow-sm bg-white p-6 rounded-3xl ring-1 ring-slate-100">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div>
+                <h3 className="text-2xl font-black text-slate-900">Historical Insights</h3>
+                <p className="text-slate-500 font-semibold mt-1">Analyze patient data trends over time.</p>
+              </div>
+              <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-100">
+                <Filter className="w-4 h-4 text-slate-400 ml-2" />
+                <DateRangeFilter onDateRangeChange={(start, end) => setLogRange({ start, end })} />
+              </div>
+            </div>
           </Card>
 
-          <Card className="border-none shadow-lg rounded-3xl">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest text-slate-500">Analytics Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 pt-2">
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between items-center p-2 rounded-xl hover:bg-slate-50 transition-colors">
-                  <span className="text-slate-500 font-bold text-xs uppercase tracking-tight">Confidence</span>
-                  <span className={`font-black ${confidenceScore > 0.8 ? 'text-green-600' : 'text-amber-600'}`}>
-                    {(confidenceScore * 100).toFixed(0)}%
-                  </span>
+          <div className="grid grid-cols-1 gap-6">
+            <Card className="border-none shadow-xl bg-white overflow-hidden rounded-[2rem] ring-1 ring-slate-100">
+              <CardHeader className="p-8 pb-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600">
+                      <HeartPulse className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl font-black text-slate-900">Vitals History</CardTitle>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Heart Rate vs Oxygen Saturation</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-indigo-500" />
+                      <span className="text-xs font-bold text-slate-600">HR (BPM)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                      <span className="text-xs font-bold text-slate-600">SpO2 (%)</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center p-2 rounded-xl hover:bg-slate-50 transition-colors">
-                  <span className="text-slate-500 font-bold text-xs uppercase tracking-tight">Last Sync</span>
-                  <span className="font-black text-slate-900">
-                    {lastDetectionTime ? lastDetectionTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'}) : "--"}
-                  </span>
+              </CardHeader>
+              <CardContent className="p-8 pt-4">
+                <div className="h-[450px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={vitalsLogs}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis 
+                        dataKey="timestamp" 
+                        stroke="#94a3b8" 
+                        fontSize={10} 
+                        axisLine={false} 
+                        tickLine={false}
+                        tickFormatter={(t) => new Date(t).toLocaleDateString() + ' ' + new Date(t).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        minTickGap={50}
+                      />
+                      <YAxis yAxisId="left" stroke="#6366f1" fontSize={10} axisLine={false} tickLine={false} domain={[40, 180]} />
+                      <YAxis yAxisId="right" orientation="right" stroke="#10b981" fontSize={10} axisLine={false} tickLine={false} domain={[80, 100]} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#fff', borderRadius: '20px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)' }}
+                        labelFormatter={(t) => new Date(t).toLocaleString()}
+                      />
+                      <Line yAxisId="left" type="monotone" dataKey="heartRate" stroke="#6366f1" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} name="Heart Rate" animationDuration={1500} />
+                      <Line yAxisId="right" type="monotone" dataKey="spO2" stroke="#10b981" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} name="SpO2" animationDuration={1500} />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
+            <Card className="border-none shadow-xl bg-white overflow-hidden rounded-[2rem] ring-1 ring-slate-100">
+              <CardHeader className="p-8 pb-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-2xl bg-amber-50 text-amber-600">
+                      <Thermometer className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl font-black text-slate-900">Environment History</CardTitle>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Temperature vs Humidity</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-amber-500" />
+                      <span className="text-xs font-bold text-slate-600">Temp (°C)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-blue-500" />
+                      <span className="text-xs font-bold text-slate-600">Humidity (%)</span>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-8 pt-4">
+                <div className="h-[450px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={roomLogs}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis 
+                        dataKey="timestamp" 
+                        stroke="#94a3b8" 
+                        fontSize={10} 
+                        axisLine={false} 
+                        tickLine={false}
+                        tickFormatter={(t) => new Date(t).toLocaleDateString() + ' ' + new Date(t).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        minTickGap={50}
+                      />
+                      <YAxis yAxisId="left" stroke="#f59e0b" fontSize={10} axisLine={false} tickLine={false} domain={[15, 45]} />
+                      <YAxis yAxisId="right" orientation="right" stroke="#0ea5e9" fontSize={10} axisLine={false} tickLine={false} domain={[0, 100]} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#fff', borderRadius: '20px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)' }}
+                        labelFormatter={(t) => new Date(t).toLocaleString()}
+                      />
+                      <Line yAxisId="left" type="monotone" dataKey="temperature" stroke="#f59e0b" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} name="Temperature" animationDuration={1500} />
+                      <Line yAxisId="right" type="monotone" dataKey="humidity" stroke="#0ea5e9" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} name="Humidity" animationDuration={1500} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
+      )}
     </div>
+
   );
 }

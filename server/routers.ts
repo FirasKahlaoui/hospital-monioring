@@ -115,8 +115,11 @@ export const appRouter = router({
         isAuthorized: z.number().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        const meAsPersonInAnyFacility = await db.getPersonByEmail(ctx.user.email || "");
+        const ownerId = meAsPersonInAnyFacility?.userId || ctx.user.id;
+
         const event = await db.logDetectionEvent({
-          userId: ctx.user.id,
+          userId: ownerId,
           personId: input.personId ?? input.patientId ?? null,
           eventType: input.eventType,
           severity: input.severity,
@@ -134,7 +137,7 @@ export const appRouter = router({
             content: `An unknown person has been detected in room ${input.roomId || "unknown"}. Please investigate immediately.`,
           });
           await db.createAlertLog({
-            userId: ctx.user.id,
+            userId: ownerId,
             detectionEventId: event.id,
             alertType: "unknown person detected",
             severity: "alert",
@@ -148,7 +151,7 @@ export const appRouter = router({
             content: `Patient in room ${input.roomId || "unknown"} is no longer detected. Please check immediately.`,
           });
           await db.createAlertLog({
-            userId: ctx.user.id,
+            userId: ownerId,
             detectionEventId: event.id,
             alertType: "patient missing",
             severity: "alert",
@@ -158,7 +161,7 @@ export const appRouter = router({
           });
         } else if (input.eventType === "person recognized") {
           await db.createAlertLog({
-            userId: ctx.user.id,
+            userId: ownerId,
             detectionEventId: event.id,
             alertType: "person recognized",
             severity: "info",
@@ -168,7 +171,7 @@ export const appRouter = router({
           });
         } else if (input.eventType === "patient present") {
           await db.createAlertLog({
-            userId: ctx.user.id,
+            userId: ownerId,
             detectionEventId: event.id,
             alertType: "person recognized", // Map to same general type for displaying
             severity: "info",
@@ -185,7 +188,7 @@ export const appRouter = router({
             content: `An unauthorized person has entered room ${input.roomId || "unknown"}.`,
           });
           await db.createAlertLog({
-            userId: ctx.user.id,
+            userId: ownerId,
             detectionEventId: event.id,
             alertType: "unknown person detected",
             severity: "alert",

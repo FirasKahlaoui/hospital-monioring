@@ -58,7 +58,9 @@ export const peopleRouter = router({
 
   getRooms: protectedProcedure
     .query(async ({ ctx }) => {
-      const people = await db.getPeopleByUserId(ctx.user.id);
+      const meAsPersonInAnyFacility = await db.getPersonByEmail(ctx.user.email || "");
+      const ownerId = meAsPersonInAnyFacility?.userId || ctx.user.id;
+      const people = await db.getPeopleByUserId(ownerId);
       const rooms = Array.from(new Set(people.map((p) => p.roomId).filter(Boolean)));
       return rooms.sort();
     }),
@@ -179,9 +181,12 @@ export const peopleRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       try {
-        // Verify person belongs to user
+        const meAsPersonInAnyFacility = await db.getPersonByEmail(ctx.user.email || "");
+        const ownerId = meAsPersonInAnyFacility?.userId || ctx.user.id;
+
+        // Verify person belongs to user/facility
         const person = await db.getPersonById(input.personId);
-        if (!person || person.userId !== ctx.user.id) {
+        if (!person || person.userId !== ownerId) {
           throw new Error("Person not found or unauthorized");
         }
 
@@ -228,6 +233,9 @@ export const peopleRouter = router({
 
   syncFirebasePatients: protectedProcedure
     .mutation(async ({ ctx }) => {
+      const meAsPersonInAnyFacility = await db.getPersonByEmail(ctx.user.email || "");
+      const ownerId = meAsPersonInAnyFacility?.userId || ctx.user.id;
+
       // Since everything is on Firebase now, we use the Admin SDK 
       // instead of fetch to bypass rules and avoid "Unauthorized" errors.
       const snapshot = await db.getFirebasePatientsMeta();
@@ -236,7 +244,7 @@ export const peopleRouter = router({
 
       const data = snapshot;
 
-      const existingPeople = await db.getPeopleByUserId(ctx.user.id, "patient");
+      const existingPeople = await db.getPeopleByUserId(ownerId, "patient");
       let added = 0;
 
       const patientsToSync = Object.entries(data).map(([firebaseId, value]: [string, any]) => ({
@@ -252,7 +260,7 @@ export const peopleRouter = router({
 
         if (!exists) {
           await db.createPerson({
-            userId: ctx.user.id,
+            userId: ownerId,
             name: p.name,
             role: "patient",
             roomId: p.roomId,

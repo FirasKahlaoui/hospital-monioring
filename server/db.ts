@@ -54,7 +54,7 @@ export async function getUserByOpenId(openId: string): Promise<User | undefined>
     return undefined;
   }
   console.log(`[Database] User found: ${openId}`);
-  return doc.data() as User;
+  return { id: doc.id, ...doc.data() } as User;
 }
 
 // --- People (Patients & Staff) ---
