@@ -522,11 +522,15 @@ Please check the monitoring dashboard immediately.
                 authorizedIds.includes(person.id);
 
               if (person.id === selectedPatient.id) {
+                // 🟢 GREEN — the patient themselves
                 isPatientInFrame = true;
                 patientConfidence = match.confidence;
                 color = "#10b981";
               } else {
                 seenIds.add(person.id);
+
+                // 🟢 GREEN if authorized staff, 🟠 ORANGE if known but not assigned
+                color = isPersonAuthorized ? "#10b981" : "#f97316";
 
                 if (!isPersonAuthorized) {
                   // Unauthorized Recognition Stabilization
