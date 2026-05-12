@@ -52,3 +52,55 @@ The project objectives are divided into functional and technical categories.
 	\item Security: secure authentication and encrypted communication (HTTPS).
 	\item Performance: near real-time data updates based on sampling frequency.
 \end{enumerate}
+
+\section{Contributions}
+
+This project is the result of a full-stack collaborative effort across four subsystems.
+The concrete contributions of the group are as follows:
+
+\begin{description}
+	\item[Embedded acquisition node (ESP32).]
+	      Complete firmware design and implementation: dual-core FreeRTOS task architecture,
+	      DHT22 and MAX30102 sensor drivers, PPG-based heart rate and SpO\textsubscript{2}
+	      computation, delta-threshold upload filter, LittleFS-backed configuration portal,
+	      NVS credential persistence, and automatic Wi-Fi recovery. Hardware assembly
+	      including resolution of the MAX30102 pull-up resistor incompatibility.
+
+	\item[Backend server.]
+	      Design and deployment of a Node.js/tRPC service layer with Firebase Admin SDK
+	      integration, Role-Based Access Control (RBAC), Zod schema validation, a hybrid
+	      alerting engine combining fixed clinical thresholds with Z-score anomaly
+	      detection, and automated SMTP email notifications.
+
+	\item[Web dashboard.]
+	      Implementation of a React/Vite single-page application with real-time Firebase
+	      RTDB subscriptions, Recharts-based vital sign visualisation, an AI Insights
+	      panel, and a WebWorker-based face-api.js pipeline for authorized personnel
+	      tracking using an external USB camera.
+
+	\item[AI prediction layer.]
+	      Server-side implementation of a statistical anomaly detection engine (Z-score
+	      over a 20-point sliding window) and a 5-minute vital sign forecasting model
+	      (Ordinary Least Squares linear regression), exposed as tRPC procedures and
+	      integrated into the dashboard's clinical status display.
+\end{description}
+
+\section{Organization}
+
+The remainder of this report is structured as follows.
+Chapter~2 provides a detailed problem analysis, defining use cases, system inputs and
+outputs, and platform constraints.
+Chapter~3 presents the global and functional system architecture, including the hardware
+and software decomposition.
+Chapter~4 describes the design methodology, covering the mathematical models,
+pseudocode for the main algorithms, and the development workflow.
+Chapter~5 details the implementation of all subsystems, including hardware assembly
+challenges, software modules, and validation procedures.
+Chapter~6 reports the experimental results and quantitative validation for each
+subsystem.
+Chapter~7 discusses the validity of the results, system limitations, and identified
+improvements.
+Chapter~8 concludes the report with a synthesis of achievements and directions for
+future work.
+Chapter~9 provides an expanded treatment of the AI prediction layer, including its
+quantitative evaluation and performance constraints.

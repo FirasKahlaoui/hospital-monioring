@@ -43,6 +43,18 @@ All components are powered from the ESP32 development board's 3.3\,V regulated o
 The board is powered from USB 5\,V connected to a mains adapter in the hospital room.
 
 % ============================================================
+\section{Hardware Implementation Challenges}
+% ============================================================
+
+\subsection*{Camera Module: ESP-CAM Evaluation and Replacement}
+
+During the initial design phase, an ESP32-CAM module was evaluated as an integrated solution for room monitoring and personnel identification via face recognition. The module was wired and tested within the existing hardware setup; however, it was ultimately rejected for this use case. The onboard OV2640 camera sensor produced images at an effective resolution and quality insufficient for reliable face detection: under standard indoor lighting conditions, captured frames exhibited low contrast and significant noise artifacts, making it impossible to extract discriminative facial descriptors for identification. As a result, the face recognition feature was migrated to an external USB camera connected directly to the monitoring terminal running the web dashboard, where image quality and frame rate are adequate for the face-api.js inference pipeline.
+
+\subsection*{MAX30102 Pulse Oximeter: Pull-up Resistor Issue}
+
+A hardware-level issue was encountered with the MAX30102 breakout board. In its factory configuration, the breakout board includes on-board pull-up resistors on the I\textsuperscript{2}C lines (SDA and SCL) and the interrupt line (INT). These resistors were found to be incompatible with the ESP32's I\textsuperscript{2}C bus voltage levels under the target operating conditions, causing communication failures and preventing reliable sensor readings. The resolution required physically removing the internal pull-up resistors from the breakout board and replacing them with external resistors of appropriate values connected directly between the 3.3\,V rail and the INT, SCL, and SDA pins. After this modification, I\textsuperscript{2}C communication was restored and the sensor operated correctly at 400\,kHz fast mode.
+
+% ============================================================
 \section{Hardware Schematics}
 % ============================================================
 
@@ -72,7 +84,7 @@ ESP32 embedded subsystem.
 		\textbf{Component} & \textbf{Details}                               \\
 		\midrule
 		Operating System   & Linux (Debian 13 trixie)                       \\
-		ESP32 Arduino core v3.3.7                                           \\
+		ESP32 Arduino core & v3.3.7                                          \\
 		Board target       & \texttt{esp32:esp32:esp32da} (ESP32-WROOM-32)  \\
 		Flash tool         & \texttt{esptool} (Python); \texttt{mklittlefs} \\
 		Serial monitor     & Custom \texttt{monitor.sh}                     \\

@@ -1,6 +1,3 @@
-% ============================================================
-%  CHAPTER 3 — System Architecture
-% ============================================================
 
 \chapter{System Architecture}
 \label{ch:architecture}
@@ -18,47 +15,6 @@ embedded layer, the server layer, the AI layer, and the application layer.
 	\label{fig:global_arch}
 \end{figure}
 
-% flowchart LR
-%     subgraph SL["Sensor layer"]
-%         DHT["DHT22\nTemp / Hum"]
-%         MAX["MAX30102\nHR / SpO₂"]
-%     end
-%
-%     subgraph ESP["Embedded layer (ESP32)"]
-%         C1["Core 1\nSensors + web server"]
-%         C0["Core 0\nFirebase task"]
-%         AP["Wi-Fi AP\n192.168.4.1"]
-%         STA["Wi-Fi STA\n802.11n"]
-%         FLASH["LittleFS + NVS\nFlash storage"]
-%     end
-%
-%     subgraph SRV["Server layer"]
-%         AUTH["Firebase Auth\nemail / password"]
-%         RTDB["Firebase RTDB\n/rooms  /patients"]
-%     end
-%
-%     subgraph AIL["AI layer"]
-%         AI["AI / Cloud\nPredictions"]
-%     end
-%
-%     subgraph APP["Application layer"]
-%         WEB["Web dashboard"]
-%         CFG["Config browser"]
-%     end
-%
-%     DHT -->|data| C1
-%     MAX -->|data| C1
-%     C1 <-->|shared globals| C0
-%     C1 --> AP
-%     C0 --> STA
-%     FLASH -.->|NVS load| C0
-%     C1 -.-> FLASH
-%     STA -->|auth| AUTH
-%     STA -->|push| RTDB
-%     RTDB --> AI
-%     RTDB -->|read| WEB
-%     AI -->|reports| WEB
-%     AP <-->|HTTP config| CFG
 
 \section{Functional Architecture}
 
@@ -66,10 +22,29 @@ The system is functionally decomposed into four independent subsystems, each wit
 well-defined interface:
 
 \begin{description}
-	\item[Sensor Subsystem (ESP32, Core~1).]
 	\item[Network/Firebase Subsystem (ESP32, Core~0).]
+	      Runs as a dedicated FreeRTOS task pinned to Core~0. Responsible for Firebase
+	      authentication (email/password over TLS), JSON serialization of sensor globals,
+	      HTTPS upload to the Realtime Database, and automatic Wi-Fi reconnection via
+	      \texttt{wifiConnect()}.
+
+	\item[Sensor Subsystem (ESP32, Core~1).]
+	      Executed on every iteration of the Arduino \texttt{loop()} on Core~1.
+	      Reads the DHT22 for temperature and humidity, drains the MAX30102 FIFO for
+	      raw PPG data, computes BPM via peak detection and SpO\textsubscript{2} via
+	      the ratio-of-ratios method, and writes results to shared float globals.
+
 	\item[Settings/Web Server Subsystem (ESP32, Core~1).]
+	      Registers HTTP route handlers for the configuration portal (served from
+	      LittleFS), handles form submissions to update Wi-Fi and Firebase credentials,
+	      persists all settings to NVS, and guards STA-side requests from accessing
+	      the configuration interface.
+
 	\item[Configuration and Globals Layer.]
+	      A header-only shared state layer (\texttt{globals.h}) that declares all
+	      inter-core shared variables, compile-time constants (upload interval, delta
+	      thresholds, IR presence threshold), and the \texttt{DBG} logging macros
+	      that compile to no-ops in release builds.
 \end{description}
 
 \subsection*{Backend Functional Decomposition}
@@ -140,10 +115,10 @@ No module includes another module's header directly.
 The service layer is implemented as a \textbf{Node.js} application using the \textbf{tRPC} framework to provide a strictly typed API. This architecture eliminates the need for manual schema \mbox{synchronization} between the server and client. The backend utilizes the \textbf{Firebase Admin SDK} for secure authentication verification and uses \textbf{Firestore} as the primary system of record for staff and patient data. Automated alert logic is processed in real-time by monitoring the telemetry stream against patient-specific thresholds.
 
 \begin{figure}[H]
-    \centering
-    \fbox{Figure Placeholder: Backend Architecture Diagram showing tRPC procedures, middleware chain, and database adapters.}
-    \caption{Service layer orchestration and API architecture.}
-    \label{fig:backend_arch}
+	\centering
+	\fbox{Figure Placeholder: Backend Architecture Diagram showing tRPC procedures, middleware chain, and database adapters.}
+	\caption{Service layer orchestration and API architecture.}
+	\label{fig:backend_arch}
 \end{figure}
 
 \subsection*{Web Dashboard Software}
@@ -158,17 +133,17 @@ The end-to-end data processing pipeline for a single sensor reading, from hardwa
 to cloud record, proceeds as follows:
 
 \begin{enumerate}
-    \item \textbf{Acquisition:} The ESP32 Core 1 samples the MAX30102 and DHT22 sensors.
-    \item \textbf{Processing:} Raw photoplethysmogram (PPG) data is processed via a peak-detection algorithm to derive heart rate and SpO2.
-    \item \textbf{Persistence:} Core 0 authenticates with Firebase and pushes the JSON-serialized vitals to the Realtime Database.
-    \item \textbf{Subscription:} The Web Dashboard, listening via WebSockets, receives the update and renders it in the live monitor.
-    \item \textbf{Inference:} The Dashboard periodically sends a 20-point history to the tRPC AI endpoint for anomaly analysis and forecasting.
-    \item \textbf{Alerting:} If the backend detects a threshold violation or a high-severity AI anomaly, an email is dispatched via the SMTP relay.
+	\item \textbf{Acquisition:} The ESP32 Core 1 samples the MAX30102 and DHT22 sensors.
+	\item \textbf{Processing:} Raw photoplethysmogram (PPG) data is processed via a peak-detection algorithm to derive heart rate and SpO2.
+	\item \textbf{Persistence:} Core 0 authenticates with Firebase and pushes the JSON-serialized vitals to the Realtime Database.
+	\item \textbf{Subscription:} The Web Dashboard, listening via WebSockets, receives the update and renders it in the live monitor.
+	\item \textbf{Inference:} The Dashboard periodically sends a 20-point history to the tRPC AI endpoint for anomaly analysis and forecasting.
+	\item \textbf{Alerting:} If the backend detects a threshold violation or a high-severity AI anomaly, an email is dispatched via the SMTP relay.
 \end{enumerate}
 
 \begin{figure}[H]
-    \centering
-    \fbox{Figure Placeholder: Sequence Diagram showing the end-to-end data flow from sensor to dashboard.}
-    \caption{Real-time data processing and alerting sequence.}
-    \label{fig:data_sequence}
+	\centering
+	\fbox{Figure Placeholder: Sequence Diagram showing the end-to-end data flow from sensor to dashboard.}
+	\caption{Real-time data processing and alerting sequence.}
+	\label{fig:data_sequence}
 \end{figure}

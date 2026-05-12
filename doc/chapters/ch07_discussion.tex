@@ -92,8 +92,9 @@ sessions.
 % ============================================================
 
 The unified \texttt{wifiConnect()} function using \texttt{WiFi.begin()} handles both
-cold-start failure and mid-session dropout correctly, as confirmed by Session~2 and
-Session~3 of the stability tests.
+cold-start failure and mid-session dropout correctly, as confirmed by the
+\textit{mid-session Wi-Fi dropout} and \textit{cold-start, Wi-Fi delayed} scenarios
+reported in Table~\ref{tab:stability}.
 
 The delta-threshold filter provides robustness against spurious sensor noise:
 fluctuations smaller than 0.3\,°C, 0.5\,\% RH, or 2\,\% SpO\textsubscript{2} do
@@ -104,13 +105,16 @@ low-information records in the database.
 \section{Identified Improvements}
 % ============================================================
 
-Priority improvements for future versions of the embedded subsystem:
+\subsection*{Embedded Subsystem}
+
+Priority improvements for future versions of the embedded firmware:
 
 \begin{enumerate}
 	\item \textbf{Local offline buffer.}
 	      A LittleFS-backed FIFO queue for records generated during network outages,
 	      with automatic retry on reconnection.
-	      This would eliminate the record loss observed in Sessions~2 and~3.
+	      This would eliminate the record loss observed in the dropout and cold-start
+	      stability scenarios.
 
 	\item \textbf{NVS encryption.}
 	      Enable the ESP32 native NVS encryption partition to protect credentials at rest.
@@ -123,9 +127,16 @@ Priority improvements for future versions of the embedded subsystem:
 	      Implement modem sleep between upload intervals to reduce average current usage for future battery-powered deployments.
 \end{enumerate}
 
+\subsection*{Backend, Web Dashboard, and AI Subsystems}
+
+Priority improvements for the server-side and client-side subsystems:
+
 \begin{enumerate}
-    \item \textbf{Deep Learning Models.} Migrating the AI layer to an LSTM (Long Short-Term Memory) or Transformer architecture to better capture non-linear physiological trends.
-    \item \textbf{PWA Support.} Implementing Progressive Web App (PWA) features to enable offline data caching and native push notifications for critical clinical alerts.
-    \item \textbf{Distributed Cache.} Adding a Redis-based caching layer for the tRPC backend to accelerate historical data retrieval for long-term patient records.
-    \item \textbf{Multi-Factor Authentication.} Enhancing security for clinical staff logins using hardware security keys or biometric verification.
+	\item \textbf{Deep Learning Models.} Migrating the AI layer to an LSTM (Long Short-Term Memory) or Transformer architecture to better capture non-linear physiological trends and improve forecasting accuracy during acute events.
+
+	\item \textbf{PWA Support.} Implementing Progressive Web App (PWA) features to enable offline data caching and native push notifications for critical clinical alerts, reducing dependency on an always-open browser tab.
+
+	\item \textbf{Distributed Cache.} Adding a Redis-based caching layer for the tRPC backend to accelerate historical data retrieval for long-term patient records and reduce Firestore read costs.
+
+	\item \textbf{Multi-Factor Authentication.} Enhancing security for clinical staff logins using hardware security keys or biometric verification to meet healthcare-grade access control standards.
 \end{enumerate}

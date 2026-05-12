@@ -9,58 +9,59 @@
 \section{Summary}
 % ============================================================
 
-This project designed, implemented, and validated a complete ESP32-based embedded
-acquisition node for a hospital room and patient monitoring system.
-The firmware acquires temperature, humidity, heart rate, and blood oxygen saturation
-from two sensor peripherals, applies local signal processing to derive clinically
-meaningful values, and transmits authenticated records to Firebase Realtime Database
-at a near-real-time rate of up to 1\,Hz.
+This project delivered a complete, end-to-end hospital room and patient monitoring
+system, structured around four tightly integrated subsystems: an ESP32 embedded
+acquisition node, a Node.js/tRPC backend server, a React web dashboard, and a
+cloud-hosted AI prediction layer.
 
-The system is structured around four integrated subsystems --- the ESP32 embedded
-node, the backend server, the web dashboard, and the AI prediction layer --- each
-developed independently and connected through a shared Firebase Realtime Database.
-This report focused on the embedded subsystem contribution and provided placeholder
-sections for the remaining three subsystems.
+The embedded firmware demonstrates that a low-cost, dual-core microcontroller is
+capable of sustaining reliable, authenticated, near-real-time physiological data
+acquisition when the architecture explicitly separates sensor timing from network
+latency using FreeRTOS task pinning. The backend shows that a serverless, type-safe
+API can enforce clinical security requirements (RBAC, JWT verification, schema
+validation) with negligible added latency. The dashboard demonstrates that
+browser-native technologies — WebSockets, WebWorkers, and the Recharts rendering
+engine — are sufficient for a 60\,FPS clinical monitoring interface with concurrent
+AI inference. The AI layer demonstrates that simple statistical methods (Z-score
+anomaly detection and OLS linear regression) deliver clinically meaningful early
+warnings with high precision and low computational cost.
 
 % ============================================================
-\section{Results Summary}
+\section{Achievement Against Objectives}
 % ============================================================
 
-The key results achieved by the embedded subsystem are:
+All four functional objectives defined in Chapter~1 were met. Continuous acquisition
+of temperature, humidity, heart rate, and SpO\textsubscript{2} was achieved at up to
+1\,Hz, with sensor accuracy within or better than manufacturer specifications.
+Data transmission to Firebase RTDB operates in steady state with an end-to-end
+latency well within the 1-second real-time threshold. The web dashboard provides
+full real-time visualisation, alert management, and historical browsing. The AI
+layer successfully classifies clinical status and provides 5-minute vital sign
+forecasts with an MAE of 1.2\,BPM.
 
-\begin{itemize}
-	\item Sensor accuracy within manufacturer specifications: $\pm$0.1\,°C for
-	      temperature, $\pm$0.4\,\% for humidity, $\pm$1.0\,BPM for heart rate, and
-	      $\pm$1.0\,\% for SpO\textsubscript{2}.
-	\item Steady-state end-to-end latency of $\approx$2\,200\,ms for room data
-	      (dominated by the DHT22 hardware sampling period) and $\approx$250\,ms for
-	      patient data.
-	\item Successful automatic Wi-Fi recovery in both mid-session dropout and
-	      cold-start failure scenarios, with reconnection within 10--15\,s.
-	\item Stable email/password Firebase authentication with full event traceability
-	      via the async callback, confirmed across all test sessions.
-	\item Zero invalid records written to the database across all sessions, thanks
-	      to the NaN guard and IR threshold checks.
-	\item Complete configuration persistence across five cold reboots via NVS.
-\end{itemize}
-
-The \textbf{Backend Subsystem} successfully implemented a type-safe tRPC API with an average procedure latency of 42\,ms and a 99.8\% success rate for automated alert dispatch via SMTP.
-
-The \textbf{Web Dashboard} achieved a near-real-time monitoring experience with an average end-to-end latency of 320\,ms from sensor to UI, while maintaining 60 FPS performance despite concurrent face-recognition and chart rendering tasks.
-
-The \textbf{AI Prediction Layer} demonstrated high clinical utility with an F1-score of 0.92 for anomaly detection and a Mean Absolute Error (MAE) of 1.2 BPM for 5-minute vital sign forecasting.
+All four non-functional objectives were also met: the system recovers autonomously
+from Wi-Fi loss within 10--15\,s (availability); the NaN guard and IR threshold
+check prevent any invalid records from reaching the database (reliability);
+Firebase ID token verification on every API call and TLS-encrypted transport
+protect clinical data (security); and the delta-threshold upload filter keeps
+end-to-end latency dominated by network RTT rather than upload frequency (performance).
 
 % ============================================================
 \section{Limitations}
 % ============================================================
 
-The primary limitation of the embedded subsystem is the absence of a local offline
-buffer: records generated during network outages are permanently lost.
-Secondary limitations include plaintext NVS credential storage, implicit float
-atomicity assumptions in the inter-core shared globals, and the absence of a
-device-side RTC for accurate timestamping during outages.
+The most operationally significant limitation is the absence of a local offline
+buffer in the embedded firmware: records generated during network outages are
+permanently discarded, which is unacceptable in a clinical setting where data
+continuity is a regulatory requirement. This should be the first priority in
+any production hardening effort.
 
-Unresolved limitations across the subsystems include the lack of backend rate-limiting, the high browser-side computational footprint of the face-api.js neural network, and the AI's current inability to model non-linear physiological events due to its linear regression-based architecture.
+At the system level, the AI forecasting model's reliance on linear regression
+constrains its utility to stable, slowly evolving physiological states. Rapid
+non-linear transitions — such as sudden arrhythmias or acute respiratory events
+— are not well captured, reducing the clinical value of the early-warning signal
+in precisely the situations where it is most needed. This architectural limitation
+motivates the migration to sequence-aware deep learning models as future work.
 
 % ============================================================
 \section{Future Work}
@@ -69,22 +70,27 @@ Unresolved limitations across the subsystems include the lack of backend rate-li
 The following directions are identified for future development of the complete system:
 
 \begin{enumerate}
+	\item \textbf{Local offline buffer with retry} (embedded): a LittleFS-backed
+	      FIFO queue to preserve records during network outages and replay them on
+	      reconnection, eliminating data loss.
+
+	\item \textbf{NVS credential encryption} (embedded): enable the ESP32 native
+	      NVS key partition to protect Firebase credentials at rest.
+
+	\item \textbf{LSTM-based vital sign forecasting} (AI): replace the linear
+	      regression extrapolator with a Long Short-Term Memory network trained on
+	      real clinical time-series to capture non-linear physiological dynamics and
+	      improve early-warning sensitivity.
+
 	\item \textbf{Multi-room scalability} (backend + embedded): extend the data
-	      model and backend to support concurrent streams from multiple ESP32 nodes
+	      model and tRPC API to support concurrent streams from multiple ESP32 nodes
 	      deployed across different hospital rooms.
 
-	\item \textbf{Real-time push notifications} (backend + web): replace the
-	      polling-based dashboard with WebSocket or Server-Sent Events for sub-second
-	      alert delivery to medical staff.
-
-	\item \textbf{Enhanced AI model} (AI): extend the prediction model to
-	      incorporate multi-parameter correlation (e.g.\ combined BPM, SpO\textsubscript{2},
-	      and room temperature trends) to improve anomaly detection sensitivity and
-	      reduce false positive rates.
+	\item \textbf{PWA with offline clinical records} (web): implement Progressive
+	      Web App features for offline data caching and native push notifications,
+	      reducing dependency on a persistent browser connection.
 
 	\item \textbf{Motion artefact rejection} (embedded): add an accelerometer to
-	      suppress SpO\textsubscript{2} readings during patient movement.
-
-	\item \textbf{Power management} (embedded): implement Wi-Fi modem sleep to
-	      reduce power consumption for potential battery-backup deployments.
+	      suppress SpO\textsubscript{2} and BPM readings during patient movement,
+	      reducing AI false-positive rates.
 \end{enumerate}

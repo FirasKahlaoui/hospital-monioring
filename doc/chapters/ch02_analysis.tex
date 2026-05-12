@@ -39,6 +39,12 @@ The following operational scenarios define the expected system behaviour.
 	\item[UC-4: Remote Reconfiguration.]
 	      A technician connects to the AP at any time to update credentials.
 	      After saving, the device reboots and applies the new configuration.
+
+	\item[UC-5: Sensor Fault Detection.]
+	      If a sensor returns an invalid reading (NaN from DHT22, or an IR raw value
+	      below the 50\,000-count finger-presence threshold from the MAX30102), the
+	      firmware discards the sample, skips the upload, and continues monitoring
+	      without writing corrupt data to the database.
 \end{description}
 
 \subsection*{Backend Use Cases}
@@ -122,9 +128,6 @@ The Firebase upload interval is \texttt{FIREBASE\_INTERVAL\_MS = 1\,000\,ms},
 providing a near-real-time update rate.
 The DHT22 enforces a hardware minimum inter-sample interval of 2\,000\,ms.
 
-% -------------------------------------------------------
-% TODO (Backend Team): Add latency constraints for the API
-% -------------------------------------------------------
 
 \subsection*{Energy Constraints}
 

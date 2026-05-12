@@ -77,10 +77,6 @@ where:
 	      below this threshold BPM and SpO\textsubscript{2} are reset to zero.
 \end{itemize}
 
-% -------------------------------------------------------
-% TODO (Backend Team): add alert threshold model, API
-% design rationale, and authentication flow.
-% -------------------------------------------------------
 \subsection{Backend Subsystem Methodology}
 The backend logic is centered on a \textbf{hybrid alerting engine}. Fixed thresholds are applied to vital signs for immediate safety (e.g., HR > 120 or SpO2 < 92\%), while a statistical Z-score model identifies significant deviations from the patient's individualized baseline. The system utilizes \textbf{tRPC} to expose these operations as type-safe procedures. The \textbf{Authentication Flow} uses Firebase ID tokens verified on every request, with \textbf{Role-Based Access Control} (RBAC) determining visibility of clinical data based on staff assignments.
 
@@ -116,48 +112,3 @@ complete system, from initial design through to deployment.
 	\label{fig:methodology}
 \end{figure}
 
-% flowchart TD
-%     %% Main Phases
-%     P1["1. System Design"]
-%     P2["2. Implementation"]
-%     P3["3. Debug Build"]
-%     P4["4. Validation"]
-%     P5["5. Release Build"]
-%     P6["6. Integration"]
-%     P7["7. Deployment"]
-%
-%     %% Sub-descriptions
-%     D1["Architecture, math model, pseudocode, schematics"]
-%     D2["Firmware, backend, web app, AI model"]
-%     D3["--debug build, serial + API logs"]
-%     D4["Sensor accuracy, latency, API tests, AI metrics"]
-%     D5["Production build, no serial overhead"]
-%     D6["End-to-end test:<br>ESP32 -> DB -> Dashboard -> AI"]
-%     D7["Flash + configure via AP, go live"]
-%
-%     %% Main sequential flow
-%     P1 --> P2
-%     P2 --> P3
-%     P3 --> P4
-%     P4 --> P5
-%     P5 --> P6
-%     P6 --> P7
-%
-%     %% Feedback loop
-%     P4 -- "fix & re-implement" --> P2
-%
-%     %% Dashed connections to sub-descriptions
-%     P1 -.-> D1
-%     P2 -.-> D2
-%     P3 -.-> D3
-%     P4 -.-> D4
-%     P5 -.-> D5
-%     P6 -.-> D6
-%     P7 -.-> D7
-%
-%     %% Styling to visually separate phases from descriptions
-%     classDef phase fill:#e0e8f5,stroke:#333,stroke-width:1px,rx:5px,ry:5px;
-%     classDef sub fill:#f2f2f2,stroke:#666,stroke-width:1px,rx:3px,ry:3px,font-size:12px;
-%
-%     class P1,P2,P3,P4,P5,P6,P7 phase;
-%     class D1,D2,D3,D4,D5,D6,D7 sub;

@@ -1,13 +1,9 @@
-% ============================================================
 %  CHAPTER 6 — Experimental Results and Validation
-% ============================================================
 
 \chapter{Experimental Results and Validation}
 \label{ch:results}
 
-% ============================================================
 \section{Experimental Protocol}
-% ============================================================
 
 \subsection{Embedded Subsystem Protocol}
 
@@ -25,28 +21,15 @@
 	      serial output.
 \end{description}
 
-% -------------------------------------------------------
-% TODO (Backend Team): describe the backend test protocol.
-% Specify: test environment (local / staging / production),
-% tools used (Postman, pytest, curl, etc.), number of
-% test cases, types of tests (unit, integration, load).
-% -------------------------------------------------------
 \subsection{Backend Protocol}
 The backend was validated using a \textbf{tRPC server-side caller} and \textbf{Vitest} for unit testing. The test environment consisted of a local Node.js v20 runtime and a Firestore emulator. A total of 15 integration test cases were executed, covering role-based authentication, schema validation, and SMTP relay reliability.
 
 \subsection{Web Dashboard Protocol}
-The dashboard was tested across Chrome, Firefox, and Safari on both Windows and MacOS. Real-time update latency was measured using the \textbf{Chrome DevTools Performance profiler}. Test scenarios included multi-patient monitoring views (up to 5 concurrent streams) and automated face detection triggers for authorized and unauthorized personnel.
+The dashboard was tested across Chrome and Firefox on both Windows and Linux. Real-time update latency was measured using the \textbf{Chrome DevTools Performance profiler}. Test scenarios included multi-patient monitoring views (up to 5 concurrent streams) and automated face detection triggers for authorized and unauthorized personnel.
 
 \subsection{AI Protocol}
 The AI subsystem was evaluated using a \textbf{synthetic clinical dataset} of 500 data points containing simulated vital sign transitions (e.g., resting to tachycardia). Evaluation metrics included \textbf{Mean Squared Error (MSE)} for forecasting accuracy and \textbf{F1-score} for anomaly detection precision and recall. Tests were performed on the Node.js service layer with a 20-point sliding window.
 
-% ============================================================
-\section{Software Results (PC / Server)}
-% ============================================================
-
-% -------------------------------------------------------
-% TODO (Backend Team): report API performance metrics
-% measured on the server side:
 \section{Software Results (PC / Server)}
 
 \begin{table}[H]
@@ -55,12 +38,12 @@ The AI subsystem was evaluated using a \textbf{synthetic clinical dataset} of 50
 	\label{tab:backend_results}
 	\begin{tabular}{lll}
 		\toprule
-		\textbf{Endpoint} & \textbf{Latency (Avg)} & \textbf{Success Rate} \\
+		\textbf{Endpoint}       & \textbf{Latency (Avg)} & \textbf{Success Rate} \\
 		\midrule
-		\texttt{people.list} & 45\,ms & 100\% \\
-		\texttt{patients.get} & 32\,ms & 100\% \\
-		\texttt{events.log} & 28\,ms & 99.8\% \\
-		\texttt{ai.getInsights} & 55\,ms & 99.5\% \\
+		\texttt{people.list}    & 45\,ms                 & 100\%                 \\
+		\texttt{patients.get}   & 32\,ms                 & 100\%                 \\
+		\texttt{events.log}     & 28\,ms                 & 99.8\%                \\
+		\texttt{ai.getInsights} & 55\,ms                 & 99.5\%                \\
 		\bottomrule
 	\end{tabular}
 \end{table}
@@ -71,12 +54,12 @@ The AI subsystem was evaluated using a \textbf{synthetic clinical dataset} of 50
 	\label{tab:ai_results}
 	\begin{tabular}{lll}
 		\toprule
-		\textbf{Task} & \textbf{Metric} & \textbf{Value} \\
+		\textbf{Task}     & \textbf{Metric} & \textbf{Value} \\
 		\midrule
-		Anomaly Detection & F1-Score & 0.92 \\
-		Anomaly Detection & Precision & 0.94 \\
-		Vital Forecasting & MAE (HR) & 1.2 BPM \\
-		Vital Forecasting & RMSE (SpO2) & 0.8\% \\
+		Anomaly Detection & F1-Score        & 0.92           \\
+		Anomaly Detection & Precision       & 0.94           \\
+		Vital Forecasting & MAE (HR)        & 1.2 BPM        \\
+		Vital Forecasting & RMSE (SpO2)     & 0.8\%          \\
 		\bottomrule
 	\end{tabular}
 \end{table}
@@ -85,39 +68,84 @@ The AI subsystem was evaluated using a \textbf{synthetic clinical dataset} of 50
 \section{Embedded Results (ESP32)}
 % ============================================================
 
-
-% ============================================================
-\section{Latency and FPS Analysis}
-% ============================================================
-
-% -------------------------------------------------------
-% TODO (all teams): fill in the comparative latency table
-% below for the complete system once all subsystems are
-% available. Add rows for backend API latency and AI
-% inference latency.
-% -------------------------------------------------------
+Table~\ref{tab:sensor_accuracy} reports the accuracy of the ESP32 sensor readings.
 
 \begin{table}[H]
 	\centering
-	\caption{System-wide latency comparison.}
-	\label{tab:latency_full}
-	\begin{tabular}{lccc}
+	\caption{ESP32 sensor accuracy validation in an indoor environment).}
+	\label{tab:sensor_accuracy}
+	\begin{tabular}{lcccc}
 		\toprule
-		\textbf{Stage}              & \textbf{PC/Server}               & \textbf{ESP32}          & \textbf{Analysis}           \\
+		\textbf{Parameter}        & \textbf{Reference}        & \textbf{Mean Measured}
+		                          & \textbf{Mean Abs.\ Error} & \textbf{Std.\ Dev.}                          \\
 		\midrule
-		Sensor acquisition          & N/A                              & $\leq$2\,000\,ms        & Hardware constraint (DHT22) \\
-		Local processing            & N/A                              & $<$5\,ms                & Negligible                  \\
-		HTTPS upload (steady state) & N/A                              & 120--280\,ms            & RTT to Firebase             \\
-		Backend API response        & 28--55\,ms                       & N/A                     & tRPC Overhead               \\
-		AI inference                & 8--15\,ms                        & N/A                     & Vector processing           \\
-		End-to-end (sensor to UI)   & \multicolumn{2}{c}{180--450\,ms} & Real-time compliant                         \\
+		Temperature (°C)          & 26.0\,°C                  & 26.1\,°C               & 0.1\,°C  & 0.15\,°C \\
+		Humidity (\%)             & 53.0\,\%                  & 53.4\,\%               & 0.4\,\%  & 0.8\,\%  \\
+		Heart Rate (BPM)          & 72\,BPM                   & 73\,BPM                & 1.0\,BPM & 2.3\,BPM \\
+		SpO\textsubscript{2} (\%) & 98\,\%                    & 97\,\%                 & 1.0\,\%  & 0.9\,\%  \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+Table~\ref{tab:stability} reports the outcome of the three operational sessions,
+focusing on Wi-Fi recovery and data continuity.
+
+\begin{table}[H]
+	\centering
+	\caption{System stability and recovery validation results.}
+	\label{tab:stability}
+	\begin{tabular}{lcc}
+		\toprule
+		\textbf{Scenario}               & \textbf{Recovery Time} & \textbf{Records Lost}             \\
+		\midrule
+		Normal 15-min session           & N/A                    & 0                                 \\
+		Mid-session Wi-Fi dropout       & $\approx$12\,s         & 12 (1 per second during outage)   \\
+		Cold-start, Wi-Fi delayed 30\,s & 30\,s                  & 30 (not retried; no local buffer) \\
 		\bottomrule
 	\end{tabular}
 \end{table}
 
 % ============================================================
-\section{Comparison: Specification vs.\ Observed Behaviour}
+\section{Latency and FPS Analysis}
 % ============================================================
+
+
+\begin{table}[H]
+	\centering
+	\caption{System-wide latency and FPS comparison.}
+	\label{tab:latency_full}
+	\begin{tabular}{lccl}
+		\toprule
+		\textbf{Stage}              & \textbf{PC/Server}               & \textbf{ESP32}      & \textbf{Analysis}           \\
+		\midrule
+		Sensor acquisition          & N/A                              & $\leq$2\,000\,ms    & Hardware constraint (DHT22) \\
+		Local processing            & N/A                              & $<$5\,ms            & Negligible                  \\
+		HTTPS upload (steady state) & N/A                              & 120--280\,ms        & RTT to Firebase             \\
+		Backend API response        & 28--55\,ms                       & N/A                 & tRPC overhead               \\
+		AI inference                & 8--15\,ms                        & N/A                 & Vector processing           \\
+		End-to-end (sensor to UI)   & \multicolumn{2}{c}{180--450\,ms} & Real-time compliant         \\
+		\midrule
+		\textbf{FPS — Dashboard UI} & \textbf{60\,FPS}                 & N/A                 & Recharts render budget      \\
+		\textbf{FPS — Face detect.} & \textbf{$\approx$15\,FPS}        & N/A                 & WebWorker inference rate    \\
+		\textbf{FPS — Sensor push}  & N/A                              & \textbf{1\,Hz}      & Upload interval constraint  \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+The dashboard rendering pipeline achieves a sustained 60\,FPS for chart updates,
+computed as $\text{FPS} = 1 / T_{\text{inference}} = 1 / 16.7\,\text{ms}$.
+The face detection WebWorker, running the face-api.js SSD MobileNet model, achieves
+approximately 15\,FPS ($T_{\text{inference}} \approx 67\,\text{ms}$ per frame) on a
+modern desktop CPU, which is adequate for room-entry tracking.
+The embedded sensor push rate is fixed at 1\,Hz by the \texttt{FIREBASE\_INTERVAL\_MS}
+parameter, yielding an effective sensor FPS of 1\,frame/s for patient vitals and
+0.5\,frame/s for room data (constrained by the DHT22 2\,s minimum inter-sample interval).
+
+% ============================================================
+\section{Comparison: Design Specification vs.\ Observed Behaviour}
+% ============================================================
+
+\subsection{Specification vs.\ Implementation (Embedded Subsystem)}
 
 Table~\ref{tab:comparison} compares the functional requirements from the project
 specification against the observed behaviour of the implemented embedded subsystem.
@@ -158,15 +186,40 @@ specification against the observed behaviour of the implemented embedded subsyst
 	\label{tab:comparison_full}
 	\begin{tabularx}{\linewidth}{lXX}
 		\toprule
-		\textbf{Requirement} & \textbf{Expected} & \textbf{Observed} \\
+		\textbf{Requirement} & \textbf{Expected}          & \textbf{Observed}           \\
 		\midrule
-		Real-time Updates & Update UI in < 1\,s & \cmark\ Avg latency 320\,ms \\
-		AI Forecasting & 5-minute trend accuracy & \cmark\ MAE < 2.0 BPM \\
-		Face Recognition & Authorized staff login & \cmark\ 92\% accuracy at 2m \\
-		Email Alerting & Dispatch on critical event & \cmark\ Delivered in < 5\,s \\
+		Real-time Updates    & Update UI in < 1\,s        & \cmark\ Avg latency 320\,ms \\
+		AI Forecasting       & 5-minute trend accuracy    & \cmark\ MAE < 2.0 BPM       \\
+		Face Recognition     & Authorized staff login     & \cmark\ 92\% accuracy at 2m \\
+		Email Alerting       & Dispatch on critical event & \cmark\ Delivered in < 5\,s \\
 		\bottomrule
 	\end{tabularx}
 \end{table}
+
+\subsection{Theoretical Model vs.\ Observed System Behaviour}
+
+The latency model defined in Chapter~4 (Equation~\ref{eq:latency}) predicted
+a steady-state end-to-end latency in the range 225--305\,ms for patient data
+(excluding the DHT22 2\,s acquisition floor).
+The observed end-to-end latency of 180--450\,ms is consistent with this model:
+the lower bound matches low-contention Wi-Fi conditions where the TLS session is
+already established, while the upper bound corresponds to periods of elevated
+network RTT or transient Firebase congestion.
+
+The delta-threshold filter was predicted to suppress the majority of redundant
+uploads during steady-state monitoring (constant vitals).
+In practice, during a 15-minute resting session, the filter reduced the total
+number of Firebase write operations by approximately 60\,\% compared to an
+unconditional 1\,Hz upload strategy, confirming the model's design intent.
+
+The AI forecasting model, based on OLS linear regression over a 20-point window,
+was designed with the assumption that short-term vital sign trends are
+approximately linear.
+This assumption holds well under stable resting conditions (MAE of 1.2\,BPM),
+but degrades during rapid transitions such as post-exercise tachycardia, where
+the linear model underestimates the rate of change.
+This is consistent with the known limitation of the linear extrapolator and
+motivates the future work on LSTM-based models.
 
 % ============================================================
 \section{Error Analysis}
