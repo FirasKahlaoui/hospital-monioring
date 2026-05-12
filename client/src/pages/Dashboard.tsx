@@ -64,6 +64,11 @@ export default function Dashboard() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentlyInRoom, setCurrentlyInRoom] = useState<{name: string, role: string, isAuthorized: boolean}[]>([]);
   const [activeTab, setActiveTab] = useState<"monitoring" | "camera" | "logs">("monitoring");
+
+  // AI insight history — accumulates entries so insights never vanish
+  const [insightHistory, setInsightHistory] = useState<
+    { status: "stable" | "warning" | "critical"; insight: string; timestamp: Date }[]
+  >([]);
   
   // Real-time Firebase data states
   const [currentVitals, setCurrentVitals] = useState<VitalsData | null>(null);
@@ -81,6 +86,22 @@ export default function Dashboard() {
       refetchInterval: 15000 
     }
   );
+
+  // Append new AI insights to the persistent history list
+  useEffect(() => {
+    if (!aiInsights.data?.insight) return;
+    setInsightHistory(prev => {
+      // Avoid duplicates: only add if the insight text changed
+      if (prev.length > 0 && prev[0].insight === aiInsights.data!.insight) return prev;
+      const entry = {
+        status: aiInsights.data!.status as "stable" | "warning" | "critical",
+        insight: aiInsights.data!.insight,
+        timestamp: new Date(),
+      };
+      // Keep last 20 entries
+      return [entry, ...prev].slice(0, 20);
+    });
+  }, [aiInsights.data?.insight]);
 
   // Threshold States
   const [thresholds, setThresholds] = useState({
@@ -191,6 +212,12 @@ Please check the monitoring dashboard immediately.
 
   const { modelsLoaded, detectFaces, findBestMatch } = useFaceDetection();
 
+  // Refs to always give the detection interval fresh values without
+  // restarting the camera when patient/assignment data changes.
+  const selectedPatientRef = useRef<typeof selectedPatient | undefined>(undefined);
+  const knownPeopleRef = useRef<typeof people>([]);
+  const enrolledDescriptorsRef = useRef<Float32Array[]>([]);
+
   // Prepare the dataset of known faces and their descriptors
   const { knownPeople, enrolledDescriptors } = useMemo(() => {
     if (!people) {
@@ -260,6 +287,17 @@ Please check the monitoring dashboard immediately.
   }, [people]);
 
   const selectedPatient = people?.find((p) => String(p.id) === selectedPatientId);
+
+  // Keep the refs in sync with the latest state/derived values so the
+  // detection interval always reads up-to-date data.
+  useEffect(() => {
+    selectedPatientRef.current = selectedPatient;
+  }, [selectedPatient]);
+
+  useEffect(() => {
+    knownPeopleRef.current = knownPeople;
+    enrolledDescriptorsRef.current = enrolledDescriptors;
+  }, [knownPeople, enrolledDescriptors]);
 
   // Logs history
   const [logRange, setLogRange] = useState<{start: Date | null, end: Date | null}>({start: null, end: null});
@@ -425,9 +463,15 @@ Please check the monitoring dashboard immediately.
   };
 
   const startDetection = () => {
-    if (!modelsLoaded || !selectedPatient) return;
+    if (!modelsLoaded || !selectedPatientRef.current) return;
 
     detectionIntervalRef.current = setInterval(async () => {
+      // Always read from refs so we get the latest patient + assignments
+      // even if they changed after monitoring started.
+      const selectedPatient = selectedPatientRef.current;
+      const knownPeople = knownPeopleRef.current ?? [];
+      const enrolledDescriptors = enrolledDescriptorsRef.current;
+
       if (!videoRef.current || !canvasRef.current || !selectedPatient) return;
 
       setIsProcessing(true);
@@ -460,27 +504,31 @@ Please check the monitoring dashboard immediately.
             const match = findBestMatch(face.descriptor, enrolledDescriptors);
             let personName = "Unknown";
             let personRole = "other";
-            let isAuthorized = false;
             let color = "#ef4444";
 
             if (match) {
               const person = knownPeople[match.index];
               personName = person.name;
               personRole = person.role;
-              
+
+              // Always re-compute authorization from the latest assignment
+              // stored in selectedPatientRef — not from a stale closure.
+              const authorizedIds = [
+                selectedPatient.assignedDoctorId,
+                selectedPatient.assignedNurseId,
+              ].filter(Boolean);
+              const isPersonAuthorized =
+                person.id === selectedPatient.id ||
+                authorizedIds.includes(person.id);
+
               if (person.id === selectedPatient.id) {
                 isPatientInFrame = true;
                 patientConfidence = match.confidence;
                 color = "#10b981";
               } else {
                 seenIds.add(person.id);
-                const authorizedIds = [
-                  selectedPatient.assignedDoctorId,
-                  selectedPatient.assignedNurseId
-                ].filter(Boolean);
-                const isAuthorized = authorizedIds.includes(person.id);
 
-                if (!isAuthorized) {
+                if (!isPersonAuthorized) {
                   // Unauthorized Recognition Stabilization
                   unauthCounterRef.current[person.id] = (unauthCounterRef.current[person.id] || 0) + 1;
 
@@ -493,20 +541,26 @@ Please check the monitoring dashboard immediately.
                         severity: "alert",
                         roomId: selectedPatient.roomId || "unknown",
                         description: `Unauthorized person ${person.name} (${person.role}) entered the room.`,
-                        isAuthorized: 0
+                        isAuthorized: 0,
                       });
 
                       if (now - (lastEmailTimeRef.current[`unauth-${person.id}`] || 0) > EMAIL_COOLDOWN) {
-                        sendEmailAlert("Unauthorized Entry", `${person.name} (${person.role}) has entered ${selectedPatient.name}'s room but is not assigned to this patient.`);
+                        sendEmailAlert(
+                          "Unauthorized Entry",
+                          `${person.name} (${person.role}) has entered ${selectedPatient.name}'s room but is not assigned to this patient.`
+                        );
                         lastEmailTimeRef.current[`unauth-${person.id}`] = now;
                       }
                       lastEventTimeRef.current[`unauth-${person.id}`] = now;
                     }
                   }
+                } else {
+                  // Reset unauth counter if person is now authorized
+                  unauthCounterRef.current[person.id] = 0;
                 }
               }
-              
-              recognizedInFrame.push({ name: person.name, role: person.role, isAuthorized: person.id === selectedPatient.id || isAuthorized });
+
+              recognizedInFrame.push({ name: person.name, role: person.role, isAuthorized: isPersonAuthorized });
 
               const lastRecTime = lastEventTimeRef.current[`rec-${person.id}`] || 0;
               if (now - lastRecTime > 120000) {
@@ -836,8 +890,8 @@ Please check the monitoring dashboard immediately.
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                             <XAxis dataKey="timestamp" hide />
-                            <YAxis yAxisId="left" domain={[40, 160]} stroke="#6366f1" fontSize={10} axisLine={false} tickLine={false} />
-                            <YAxis yAxisId="right" orientation="right" domain={[85, 100]} stroke="#10b981" fontSize={10} axisLine={false} tickLine={false} />
+                            <YAxis yAxisId="left" domain={[0, 180]} stroke="#6366f1" fontSize={10} axisLine={false} tickLine={false} />
+                            <YAxis yAxisId="right" orientation="right" domain={[0, 100]} stroke="#10b981" fontSize={10} axisLine={false} tickLine={false} />
                             <Tooltip 
                               contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                               labelFormatter={(t) => new Date(t).toLocaleTimeString()}
@@ -855,7 +909,7 @@ Please check the monitoring dashboard immediately.
                           <LineChart data={roomHistory}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                             <XAxis dataKey="timestamp" hide />
-                            <YAxis yAxisId="left" domain={[15, 45]} stroke="#f43f5e" fontSize={10} axisLine={false} tickLine={false} />
+                            <YAxis yAxisId="left" domain={[0, 60]} stroke="#f43f5e" fontSize={10} axisLine={false} tickLine={false} />
                             <YAxis yAxisId="right" orientation="right" domain={[0, 100]} stroke="#3b82f6" fontSize={10} axisLine={false} tickLine={false} />
                             <Tooltip 
                               contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
@@ -870,46 +924,68 @@ Please check the monitoring dashboard immediately.
 
                     <TabsContent value="ai" className="m-0 focus-visible:ring-0">
                       {selectedPatient && vitalsHistory.length >= 5 ? (
-                        <div className="space-y-6">
-                          <div className={`p-6 rounded-3xl border-2 transition-all ${
+                        <div className="space-y-4">
+                          {/* Current status banner */}
+                          <div className={`p-5 rounded-2xl border-2 transition-all ${
                             aiInsights?.data?.status === 'critical' ? 'bg-red-50 border-red-100 shadow-sm shadow-red-100' : 
                             aiInsights?.data?.status === 'warning' ? 'bg-amber-50 border-amber-100 shadow-sm shadow-amber-100' : 
                             'bg-indigo-50 border-indigo-100 shadow-sm shadow-indigo-100'
                           }`}>
-                            <div className="flex items-center gap-4 mb-4">
-                              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg ${
+                            <div className="flex items-center gap-3 mb-2">
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-md ${
                                 aiInsights?.data?.status === 'critical' ? 'bg-red-500 shadow-red-200' : 
                                 aiInsights?.data?.status === 'warning' ? 'bg-amber-500 shadow-amber-200' : 
                                 'bg-indigo-500 shadow-indigo-200'
                               }`}>
-                                <Sparkles className="w-7 h-7" />
+                                <Sparkles className="w-5 h-5" />
                               </div>
                               <div>
-                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Clinical Analysis</p>
-                                <p className="text-xl font-black capitalize">{aiInsights?.data?.status || 'Analyzing...'}</p>
+                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Live Analysis</p>
+                                <p className="text-base font-black capitalize">{aiInsights?.data?.status || 'Analyzing...'}</p>
                               </div>
                             </div>
-                            <p className="text-base text-slate-600 leading-relaxed font-semibold italic">
+                            <p className="text-sm text-slate-600 leading-relaxed font-semibold italic">
                               "{aiInsights?.data?.insight || "Generating clinical insights..."}"
                             </p>
                           </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Predictive Trend</p>
-                              <div className="flex items-center gap-2">
-                                <TrendingUp className="w-4 h-4 text-indigo-500" />
-                                <span className="font-bold text-slate-700">Stable Baseline</span>
+                          {/* Persistent insight history list */}
+                          {insightHistory.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Insight History</p>
+                              <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+                                {insightHistory.map((entry, i) => (
+                                  <div
+                                    key={i}
+                                    className={`flex gap-3 p-3.5 rounded-xl border text-sm transition-all ${
+                                      entry.status === 'critical' ? 'bg-red-50 border-red-100' :
+                                      entry.status === 'warning'  ? 'bg-amber-50 border-amber-100' :
+                                      'bg-slate-50 border-slate-100'
+                                    }`}
+                                  >
+                                    <div className={`w-2 shrink-0 rounded-full mt-1 self-stretch ${
+                                      entry.status === 'critical' ? 'bg-red-400' :
+                                      entry.status === 'warning'  ? 'bg-amber-400' :
+                                      'bg-indigo-400'
+                                    }`} />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center justify-between gap-2 mb-0.5">
+                                        <span className={`text-[10px] font-black uppercase tracking-widest ${
+                                          entry.status === 'critical' ? 'text-red-600' :
+                                          entry.status === 'warning'  ? 'text-amber-600' :
+                                          'text-indigo-600'
+                                        }`}>{entry.status}</span>
+                                        <span className="text-[10px] font-medium text-slate-400 shrink-0">
+                                          {entry.timestamp.toLocaleTimeString()}
+                                        </span>
+                                      </div>
+                                      <p className="text-slate-600 font-medium leading-snug">{entry.insight}</p>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             </div>
-                            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Anomaly Detection</p>
-                              <div className="flex items-center gap-2">
-                                <Shield className="w-4 h-4 text-emerald-500" />
-                                <span className="font-bold text-slate-700">No Anomalies</span>
-                              </div>
-                            </div>
-                          </div>
+                          )}
                         </div>
                       ) : (
                         <div className="flex flex-col items-center justify-center py-20 text-center">
