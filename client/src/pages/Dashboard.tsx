@@ -62,13 +62,22 @@ export default function Dashboard() {
   const [lastDetectionTime, setLastDetectionTime] = useState<Date | null>(null);
   const [confidenceScore, setConfidenceScore] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [currentlyInRoom, setCurrentlyInRoom] = useState<{name: string, role: string, isAuthorized: boolean}[]>([]);
   const [activeTab, setActiveTab] = useState<"monitoring" | "camera" | "logs">("monitoring");
 
   // AI insight history — accumulates entries so insights never vanish
   const [insightHistory, setInsightHistory] = useState<
     { status: "stable" | "warning" | "critical"; insight: string; timestamp: Date }[]
   >([]);
+
+  // Room occupancy — each entry stays visible for 60 s after last seen
+  const [currentlyInRoom, setCurrentlyInRoom] = useState<{
+    id: string;
+    name: string;
+    role: string;
+    isAuthorized: boolean;
+    firstSeen: Date;
+    lastSeen: Date;
+  }[]>([]);
   
   // Real-time Firebase data states
   const [currentVitals, setCurrentVitals] = useState<VitalsData | null>(null);
@@ -206,6 +215,14 @@ Please check the monitoring dashboard immediately.
   const absenceCounterRef = useRef<number>(0);
   const unknownCounterRef = useRef<{ [key: string]: number }>({});
   const unauthCounterRef = useRef<{ [key: string]: number }>({});
+
+  // Persistent room occupancy map: personId -> occupant entry
+  // Entries expire 60 s after they were last detected.
+  const ROOM_RETENTION_MS = 60_000;
+  const roomOccupantsRef = useRef<Map<string, {
+    id: string; name: string; role: string;
+    isAuthorized: boolean; firstSeen: Date; lastSeen: Date;
+  }>>(new Map());
 
   const EMAIL_COOLDOWN = 15 * 60 * 1000; // 15 minutes
   const STABILITY_THRESHOLD = 5; // Must be consistent for 5 frames (~3 seconds)
@@ -478,13 +495,14 @@ Please check the monitoring dashboard immediately.
       try {
         const faces = await detectFaces(videoRef.current);
         const now = Date.now();
+        const nowDate = new Date();
         const recognizedInFrame: {name: string, role: string, isAuthorized: boolean}[] = [];
 
         if (faces.length === 0) {
           setDetectionStatus("absent");
           setConfidenceScore(0);
-          setLastDetectionTime(new Date());
-          setCurrentlyInRoom([]);
+          setLastDetectionTime(nowDate);
+          // Do NOT clear the panel — let the 60-second expiry handle it
         } else {
           lastFaceSeenTimeRef.current = now;
           let isPatientInFrame = false;
@@ -564,7 +582,16 @@ Please check the monitoring dashboard immediately.
                 }
               }
 
-              recognizedInFrame.push({ name: person.name, role: person.role, isAuthorized: isPersonAuthorized });
+              // Upsert into the persistent occupancy map
+              const existingEntry = roomOccupantsRef.current.get(person.id);
+              roomOccupantsRef.current.set(person.id, {
+                id: person.id,
+                name: person.name,
+                role: person.role,
+                isAuthorized: isPersonAuthorized,
+                firstSeen: existingEntry?.firstSeen ?? nowDate,
+                lastSeen: nowDate,
+              });
 
               const lastRecTime = lastEventTimeRef.current[`rec-${person.id}`] || 0;
               if (now - lastRecTime > 120000) {
@@ -580,7 +607,18 @@ Please check the monitoring dashboard immediately.
             } else {
               unknownCount++;
               seenUnknown.global = true;
-              
+
+              // Upsert the unknown bucket — one shared entry per room
+              const existingUnknown = roomOccupantsRef.current.get("__unknown__");
+              roomOccupantsRef.current.set("__unknown__", {
+                id: "__unknown__",
+                name: "Unknown Person",
+                role: "unknown",
+                isAuthorized: false,
+                firstSeen: existingUnknown?.firstSeen ?? nowDate,
+                lastSeen: nowDate,
+              });
+
               // Unknown Stabilization
               unknownCounterRef.current["global"] = (unknownCounterRef.current["global"] || 0) + 1;
 
@@ -616,19 +654,17 @@ Please check the monitoring dashboard immediately.
             }
           }
 
-          // Add unknown persons to the room list
-          for (let i = 0; i < unknownCount; i++) {
-            recognizedInFrame.push({ name: "Unknown Person", role: "unknown", isAuthorized: false });
+          // Remove unknown bucket if no unknown seen this tick
+          if (!seenUnknown.global) {
+            unknownCounterRef.current["global"] = 0;
+            // Let the 60-second expiry remove it naturally
           }
 
-          // Reset counters for those not seen
+          // Reset unauth counters for persons not seen this tick
           for (const id in unauthCounterRef.current) {
             if (!seenIds.has(id)) unauthCounterRef.current[id] = 0;
           }
-          if (!seenUnknown.global) unknownCounterRef.current["global"] = 0;
 
-          setCurrentlyInRoom(recognizedInFrame);
-          
           if (isPatientInFrame) {
             setDetectionStatus("present");
             setConfidenceScore(patientConfidence);
@@ -660,6 +696,16 @@ Please check the monitoring dashboard immediately.
           }
           setLastDetectionTime(new Date());
         }
+
+        // Expire occupants not seen for > 60 s, then sync state
+        roomOccupantsRef.current.forEach((_entry, key) => {
+          if (Date.now() - roomOccupantsRef.current.get(key)!.lastSeen.getTime() > ROOM_RETENTION_MS) {
+            roomOccupantsRef.current.delete(key);
+          }
+        });
+        setCurrentlyInRoom(
+          Array.from(roomOccupantsRef.current.values()).sort((a, b) => b.lastSeen.getTime() - a.lastSeen.getTime())
+        );
       } catch (err) {
         console.error("Detection error:", err);
       } finally {
@@ -1066,10 +1112,13 @@ Please check the monitoring dashboard immediately.
                             <div className="flex items-center justify-between">
                               <p className={`text-sm font-bold ${p.isAuthorized ? 'text-slate-900' : 'text-rose-900'}`}>{p.name}</p>
                               {!p.isAuthorized && (
-                                <Badge variant="destructive" className="text-[8px] h-4 px-1 rounded-sm uppercase font-black">Warning</Badge>
+                                <Badge variant="destructive" className="text-[7px] h-4 px-1 rounded-sm uppercase font-black whitespace-nowrap">Unauthorized Access</Badge>
                               )}
                             </div>
-                            <p className="text-[10px] font-bold uppercase tracking-tighter text-slate-400">{p.role}</p>
+                            <div className="flex items-center justify-between">
+                              <p className="text-[10px] font-bold uppercase tracking-tighter text-slate-400">{p.role}</p>
+                              <p className="text-[9px] font-medium text-slate-400 uppercase">Seen: {p.firstSeen.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                            </div>
                           </div>
                         </div>
                       ))
