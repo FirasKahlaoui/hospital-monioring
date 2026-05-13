@@ -10,20 +10,22 @@
 The firmware maps the software architecture described in
 Chapter~\ref{ch:architecture} directly onto the ESP32's dual-core execution model.
 At boot, \texttt{setup()} initialises LittleFS, loads NVS configuration, initialises the sensors, starts
-both Wi-Fi interfaces, registers HTTP routes, and launches the Firebase FreeRTOS task .
+both Wi-Fi interfaces, registers HTTP routes, and launches the Firebase FreeRTOS task.
 After \texttt{setup()} returns, the Arduino \texttt{loop()} continues to execute, calling \texttt{updateSensors()} on every iteration and scheduling periodic
 Wi-Fi background scans.
 
-The \textbf{Backend Subsystem} is implemented as a Node.js service that acts as a secure proxy between the clinical dashboard and the Firebase infrastructure. It consumes data from Firestore for administrative operations and manages the alert logic by evaluating incoming telemetry. The server is initialized via a tRPC router which binds the service logic to the network layer, ensuring that every API call is strictly validated against the project's TypeScript interfaces.
+Implementation choices in this chapter are traced directly to the architectural decomposition in Chapter~\ref{ch:architecture}, ensuring that each subsystem is implemented against the constraints and interfaces established in the design phase.
+
+The \textbf{Backend Subsystem} is implemented as a Node.js service that acts as a secure proxy between the clinical dashboard and the Firebase infrastructure. It consumes data from Firestore for administrative operations and stores detection/alert logs. The server is initialized via a tRPC router which binds the service logic to the network layer, ensuring that every API call is strictly validated against the project's TypeScript interfaces. Authentication uses Firebase ID tokens at login and persists sessions via signed cookies.
 
 \begin{figure}[H]
     \centering
-    \fbox{Figure Placeholder: Component Diagram showing the relationship between the tRPC Router, Firebase Admin SDK, and the React Client.}
-    \caption{Backend service and data integration overview.}
+    \includegraphics[width=\linewidth]{Backend Service Overview.png}
+    \caption{Backend service and data integration overview showing tRPC/Firebase interaction.}
     \label{fig:backend_overview}
 \end{figure}
 
-The \textbf{Web Dashboard} is a high-fidelity React application that serves as the central command center for hospital staff. It implements a reactive state model where UI components automatically re-render in response to Firebase Realtime Database events. This tight coupling between the cloud database and the frontend components allows for a "zero-refresh" monitoring experience, which is critical for observing acute physiological changes.
+The \textbf{Web Dashboard} is a high-fidelity React application that serves as the central command center for hospital staff. It implements a reactive state model where UI components automatically re-render in response to Firebase Realtime Database events. This tight coupling between the cloud database and the frontend components allows for a "zero-refresh" monitoring experience, which is critical for observing acute physiological changes. Threshold-based clinical alerts are computed on the client and trigger emails through a backend SMTP procedure.
 
 % ============================================================
 \section{Hardware Implementation}
@@ -41,6 +43,18 @@ rail:
 
 All components are powered from the ESP32 development board's 3.3\,V regulated output.
 The board is powered from USB 5\,V connected to a mains adapter in the hospital room.
+
+% ============================================================
+\section{Hardware Implementation Challenges}
+% ============================================================
+
+\subsection*{Camera Module: ESP-CAM Evaluation and Replacement}
+
+During the initial design phase, an ESP32-CAM module was evaluated as an integrated solution for room monitoring and personnel identification via face recognition. The module was wired and tested within the existing hardware setup; however, it was ultimately rejected for this use case. The onboard OV2640 camera sensor produced images at an effective resolution and quality insufficient for reliable face detection: under standard indoor lighting conditions, captured frames exhibited low contrast and significant noise artifacts, making it impossible to extract discriminative facial descriptors for identification. As a result, the face recognition feature was migrated to an external USB camera connected directly to the monitoring terminal running the web dashboard, where image quality and frame rate are adequate for the face-api.js inference pipeline.
+
+\subsection*{MAX30102 Pulse Oximeter: Pull-up Resistor Issue}
+
+A hardware-level issue was encountered with the MAX30102 breakout board. In its factory configuration, the breakout board includes on-board pull-up resistors on the I\textsuperscript{2}C lines (SDA and SCL) and the interrupt line (INT). These resistors were found to be incompatible with the ESP32's I\textsuperscript{2}C bus voltage levels under the target operating conditions, causing communication failures and preventing reliable sensor readings. The resolution required physically removing the internal pull-up resistors from the breakout board and replacing them with external resistors of appropriate values connected directly between the 3.3\,V rail and the INT, SCL, and SDA pins. After this modification, I\textsuperscript{2}C communication was restored and the sensor operated correctly at 400\,kHz fast mode.
 
 % ============================================================
 \section{Hardware Schematics}
@@ -72,7 +86,7 @@ ESP32 embedded subsystem.
 		\textbf{Component} & \textbf{Details}                               \\
 		\midrule
 		Operating System   & Linux (Debian 13 trixie)                       \\
-		ESP32 Arduino core v3.3.7                                           \\
+		ESP32 Arduino core & v3.3.7                                          \\
 		Board target       & \texttt{esp32:esp32:esp32da} (ESP32-WROOM-32)  \\
 		Flash tool         & \texttt{esptool} (Python); \texttt{mklittlefs} \\
 		Serial monitor     & Custom \texttt{monitor.sh}                     \\
@@ -125,10 +139,21 @@ always calls \texttt{WiFi.disconnect()} followed by
 \texttt{WiFi.begin(ssid, password)}.
 
 \subsection{Backend Implementation}
-The backend implementation is modularized into \textbf{functional routers} (e.g., \texttt{people}, \texttt{patients}, \texttt{events}, \texttt{ai}). Each router defines its procedures using Zod for runtime schema validation. The \textbf{Alert Engine} utilizes a dedicated SMTP module configured with a Gmail relay to dispatch clinical notifications. Authentication is implemented as a middleware layer that decodes and verifies Firebase JWTs before granting access to protected clinical procedures.
+The backend implementation is modularized into \textbf{functional routers} (\texttt{people}, \texttt{events}, \texttt{alerts}, \texttt{ai}). The \texttt{patients} router is an alias of \texttt{people}, enabling a shared CRUD layer. Each router defines its procedures using Zod for runtime schema validation. Email delivery is implemented in a dedicated SMTP module and is invoked explicitly by the dashboard for threshold alerts. Authentication is implemented as a middleware layer that validates a signed session cookie derived from Firebase ID tokens.
+
+Photo enrollment uses a storage adapter that falls back to base64 data URLs if
+Firebase Storage is unavailable. This keeps the feature functional without a
+paid storage plan but increases payload sizes in the database and client.
 
 \subsection{Web Dashboard Implementation}
-The dashboard's core is the \textbf{Real-time Monitoring Component}, which uses a custom hook to manage the Firebase RTDB listener lifecycle. Vitals are visualized using \textbf{AreaCharts} from Recharts, optimized for high-frequency updates without UI stutter. A secondary \textbf{AI Insights Panel} renders synthesized clinical conclusions by subscribing to the tRPC AI results. The personnel tracking system is implemented via a \textbf{WebWorker} running \textbf{face-api.js} to ensure face detection does not block the main UI thread.
+The dashboard's core is the \textbf{Real-time Monitoring Component}, which uses a custom hook to manage the Firebase RTDB listener lifecycle. Vitals are visualized using \textbf{AreaCharts} from Recharts, optimized for high-frequency updates without UI stutter. A secondary \textbf{AI Insights Panel} renders synthesized clinical conclusions by subscribing to the tRPC AI results. The personnel tracking system is implemented via a browser-based \texttt{face-api.js} pipeline, executing detection every 600\,ms and applying a 5-frame stability threshold before logging alerts.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{Dashboard Overview.png}
+    \caption{The main dashboard interface showcasing real-time telemetry, live charts, patient information, and face tracking.}
+    \label{fig:dashboard_overview}
+\end{figure}
 
 % ============================================================
 \section{Software Validation}
@@ -155,42 +180,31 @@ Error conditions (invalid API key, incorrect password) were deliberately induced
 and confirmed to produce the expected HTTP~400 error codes via the callback.
 
 \subsection{Backend Validation}
-The backend was validated through a suite of \textbf{integration tests} using a tRPC caller. Test cases included:
+The backend includes a suite of \textbf{integration tests} using a tRPC caller. Test cases include:
 \begin{itemize}
     \item \textbf{Auth Verification:} Confirming that requests without valid tokens return HTTP 401.
     \item \textbf{Schema Enforcement:} Ensuring that malformed JSON payloads are rejected by Zod validators.
-    \item \textbf{Alert Dispatch:} Verifying that threshold violations trigger the SMTP relay and produce a "Success" status in the log.
+	\item \textbf{Alert Dispatch:} Verifying that the SMTP relay procedure can be invoked and returns a success/failure response.
 \end{itemize}
 
 \subsection{Web Dashboard Validation}
-UI validation focused on \textbf{performance under load} and \textbf{clinical accuracy}.
+UI validation focuses on \textbf{performance under load} and \textbf{clinical accuracy}.
 \begin{itemize}
-    \item \textbf{Stress Testing:} Verified that the dashboard maintains 60 FPS while rendering 10 concurrent vital sign charts.
-    \item \textbf{Personnel Detection:} Confirmed that face recognition identifies authorized staff within <2 seconds with 90\%+ confidence.
-    \item \textbf{Responsive Design:} Validated layout integrity across Desktop, Tablet, and Mobile viewport sizes using Chrome DevTools.
+	\item \textbf{Stress Testing:} Assess UI responsiveness while rendering multiple chart streams and a concurrent camera loop.
+	\item \textbf{Personnel Detection:} Validate that face recognition matches enrolled identities using the 0.6 confidence threshold and a 5-frame stability gate.
+	\item \textbf{Responsive Design:} Validate layout integrity across Desktop, Tablet, and Mobile viewport sizes using browser tooling.
 \end{itemize}
 
 % ============================================================
-\section{Embedded Implementation (ESP32)}
-% ============================================================
+\section{Implementation Challenges and Critical Analysis}
+The implementation phase revealed several critical engineering trade-offs that influenced the final system behavior.
 
-\subsection{Memory Optimisation}
-
-The LittleFS image partition is mounted with \texttt{LittleFS.begin(true)}, enabling automatic
-formatting on first boot.
-NVS storage uses the \texttt{Preferences} library with the \texttt{"settings"}
-namespace, consuming at most 10 string entries at typical credential lengths.
-
-\subsection{Latency Optimisation}
-
-Delta filtering (Equations~\ref{eq:room_thresh} and~\ref{eq:patient_thresh}) reduces
-the frequency of HTTPS requests to only those carrying new information, keeping the
-per-upload round-trip time as the dominant latency term rather than queuing delays.
-
-\section{AI Integration}
-The AI prediction layer is integrated as a \textbf{server-side service} that processes data on-demand from the dashboard. This deployment strategy was chosen to leverage the Node.js server's computational resources, keeping the ESP32 firmware lightweight.
 \begin{itemize}
-    \item \textbf{Integration:} The forecasting logic is wrapped in a tRPC query that accepts a 20-point telemetry window.
-    \item \textbf{Optimization:} Z-score calculations and linear regressions are performed using optimized math functions to minimize inference latency ($<$10\,ms).
-    \item \textbf{Validation:} The AI output was validated against synthetic "stress" datasets containing simulated cardiac events (tachycardia and SpO2 drops).
+    \item \textbf{I2C Bus Contention:} Initially, the DHT22 and MAX30102 were sampled sequentially. However, the DHT22's one-wire protocol is timing-sensitive and can be disrupted by I2C interrupts. The resolution was to move DHT22 sampling to a lower frequency (0.5\,Hz) while keeping the MAX30102 interrupt-driven on Core 1, effectively interleaving the bus access.
+    \item \textbf{TLS Overhead on ESP32:} The initial implementation suffered from 2--3\,s latency spikes during every upload. Analysis showed this was due to the overhead of establishing a new TLS session. By utilizing the \texttt{Firebase\_ESP\_Client}'s internal session persistence, the handshake is only performed once at boot, reducing subsequent upload latency to $<$300\,ms.
+    \item \textbf{Browser-Based Recognition Accuracy:} The `face-api.js` models require significant RAM. On lower-end clinical terminals, the detection loop caused "jank" in the vitals charts. A rate-limiting strategy (600\,ms per frame) was implemented to maintain 60\,FPS for the UI charts while providing acceptable detection latency for personnel tracking.
+    \item \textbf{Base64 Storage Trade-off:} The rejection of Firebase Storage (to remain on the free tier) necessitated storing profile photos as Base64 strings in Firestore. While this simplifies deployment, it increases the initial dashboard load time as it must fetch large JSON payloads containing image data. This is identified as a scalability bottleneck.
 \end{itemize}
+
+\section{Summary of Implementation Integrity}
+The final implementation successfully maps the theoretical design to a functional multi-tier system. The use of dual-core processing on the ESP32 and tRPC on the backend ensures that the system is both robust at the edge and type-safe in the cloud. Future iterations will focus on migrating face recognition to a Web Worker to improve UI responsiveness on mobile devices.

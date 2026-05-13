@@ -2,7 +2,7 @@
 
 \section{Context}
 
-The healthcare sector is undergoing a significant transformation driven the Internet of Things (IoT) technologies.
+The healthcare sector is undergoing a significant transformation driven by Internet of Things (IoT) technologies.
 Continuous, real-time monitoring of patient vital signs and ambient room conditions is a foundational requirement in any clinical environment, enabling medical staff to detect deterioration early, respond rapidly, and reduce the administrative overhead associated with manual observation rounds.
 
 This project proposes a complete, end-to-end hospital monitoring solution composed
@@ -14,8 +14,8 @@ of four integrated subsystems:
 	      user authentication.
 	\item \textbf{Web dashboard:} real-time data visualisation, historical charts,
 	      and alert management for medical staff.
-	\item \textbf{AI prediction layer:} anomaly detection on patient vitals and
-	      environmental condition assessment using cloud-hosted machine learning models.
+	\item \textbf{AI insights layer:} statistical anomaly detection and short-horizon
+	      trend forecasting executed on the server and exposed through a typed API.
 \end{itemize}
 
 \section{Problem Statement}
@@ -46,9 +46,61 @@ The project objectives are divided into functional and technical categories.
 \subsection*{Technical Objectives}
 
 \begin{enumerate}
-	\item Availability: the system shall operate continuously with network recovery mech-
-	      anisms.
+	\item Availability: the system shall operate continuously with network recovery mechanisms.
 	\item Reliability: invalid or inconsistent data shall be detected and flagged.
 	\item Security: secure authentication and encrypted communication (HTTPS).
 	\item Performance: near real-time data updates based on sampling frequency.
 \end{enumerate}
+
+\section{Contributions}
+
+This project is the result of a full-stack collaborative effort across four subsystems.
+The concrete contributions of the group are as follows:
+
+\begin{description}
+	\item[Embedded acquisition node (ESP32).]
+	      Complete firmware design and implementation: dual-core FreeRTOS task architecture,
+	      DHT22 and MAX30102 sensor drivers, PPG-based heart rate and SpO\textsubscript{2}
+	      computation, delta-threshold upload filter, LittleFS-backed configuration portal,
+	      NVS credential persistence, and automatic Wi-Fi recovery. Hardware assembly
+	      including resolution of the MAX30102 pull-up resistor incompatibility.
+
+	\item[Backend server.]
+	      Design and deployment of a Node.js/tRPC service layer with Firebase Admin SDK
+	      integration, Role-Based Access Control (RBAC), Zod schema validation, event
+	      and alert log generation for presence monitoring, a statistical AI insights
+	      endpoint for vitals, and an SMTP email procedure triggered by dashboard alerts.
+
+	\item[Web dashboard.]
+		      Implementation of a React/Vite single-page application with real-time Firebase
+		      RTDB subscriptions, Recharts-based vital sign visualisation, an AI Insights
+		      panel, and an on-device face-api.js pipeline running in the browser for
+		      authorized personnel tracking using an external USB camera.
+
+	\item[AI insights layer.]
+		      Server-side implementation of a statistical anomaly detection engine (Z-score
+		      over a short sliding window of recent points, with a minimum of 5 samples)
+		      and a 5-step vital sign forecasting model (Ordinary Least Squares linear
+		      regression), exposed as tRPC procedures and integrated into the dashboard's
+		      clinical status display.
+\end{description}
+
+\section{Organization}
+
+The remainder of this report is structured as follows.
+Chapter~2 provides a detailed problem analysis, defining use cases, system inputs and
+outputs, and platform constraints.
+Chapter~3 presents the global and functional system architecture, including the hardware
+and software decomposition.
+Chapter~4 describes the design methodology, covering the mathematical models,
+pseudocode for the main algorithms, and the development workflow.
+Chapter~5 details the implementation of all subsystems, including hardware assembly
+challenges, software modules, and validation procedures.
+Chapter~6 reports the experimental results and quantitative validation for each
+subsystem.
+Chapter~7 discusses the validity of the results, system limitations, and identified
+improvements.
+Chapter~8 concludes the report with a synthesis of achievements and directions for
+future work.
+Chapter~9 provides an expanded treatment of the AI prediction layer, including its
+quantitative evaluation and performance constraints.

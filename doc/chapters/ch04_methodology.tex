@@ -1,5 +1,8 @@
 \chapter{Methodology}
 
+\section{Methodological Scope}
+This chapter formalizes the engineering methods used to transform the problem statement into implementable algorithms and system behavior. It defines signal-processing models for vitals, the upload decision rules, timing analysis, and the statistical techniques used for AI insights. Quantitative parameters are stated explicitly where known (thresholds, window sizes, and timing bounds), and any unmeasured metrics are left for validation in Chapter~6.
+
 \section{System Design}
 
 \subsection{Embedded Subsystem (ESP32)}
@@ -77,30 +80,101 @@ where:
 	      below this threshold BPM and SpO\textsubscript{2} are reset to zero.
 \end{itemize}
 
-% -------------------------------------------------------
-% TODO (Backend Team): add alert threshold model, API
-% design rationale, and authentication flow.
-% -------------------------------------------------------
 \subsection{Backend Subsystem Methodology}
-The backend logic is centered on a \textbf{hybrid alerting engine}. Fixed thresholds are applied to vital signs for immediate safety (e.g., HR > 120 or SpO2 < 92\%), while a statistical Z-score model identifies significant deviations from the patient's individualized baseline. The system utilizes \textbf{tRPC} to expose these operations as type-safe procedures. The \textbf{Authentication Flow} uses Firebase ID tokens verified on every request, with \textbf{Role-Based Access Control} (RBAC) determining visibility of clinical data based on staff assignments.
+The backend logic is centered on a \textbf{typed procedure layer} with session-based access control. Firebase ID tokens are verified at login, then converted into a signed session cookie. Protected procedures require a valid session and enforce role-based filtering at the data layer. Alerting for presence events (unknown person, patient absence) is triggered by detection events logged from the dashboard.
 
 \begin{figure}[H]
     \centering
-    \fbox{Figure Placeholder: Flowchart of the Hybrid Alerting Logic showing the parallel processing of fixed thresholds and Z-score anomalies.}
-    \caption{Clinical alert and decision logic flow.}
+	\includegraphics[width=\linewidth]{Face Recognition Pipeline.png}
+    \caption{Face recognition pipeline and clinical alert decision flow.}
     \label{fig:alert_logic}
 \end{figure}
 
 \subsection{Web Dashboard Subsystem Methodology}
-The dashboard utilizes a \textbf{reactive component architecture} built with React Hooks. It maintains a real-time connection to the Firebase Realtime Database using a WebSocket-based subscription model. For security and presence tracking, the methodology includes local inference using \textbf{face-api.js} to detect and identify authorized medical personnel. Visualizations are rendered using a rolling buffer of vitals, updated every 1,000\,ms to maintain a high-fidelity trend view.
+The dashboard utilizes a \textbf{reactive component architecture} built with React Hooks. It maintains a real-time connection to the Firebase Realtime Database using a WebSocket-based subscription model. For security and presence tracking, the methodology includes local inference using \texttt{face-api.js} to detect and identify authorized medical personnel. Visualizations are rendered using a rolling buffer of vitals, updated every 1,000\,ms to maintain a high-fidelity trend view. A camera detection loop runs every 600\,ms; alerts are issued only after a stability threshold of 5 consecutive frames.
 
-\subsection{AI Subsystem Methodology}
-The AI subsystem formulates the monitoring task as a \textbf{time-series anomaly detection and forecasting problem}.
-\begin{itemize}
-    \item \textbf{Anomaly Detection:} Calculated via the Z-score $z = \frac{x - \mu}{\sigma}$ over a 20-point sliding window. Values exceeding a magnitude of 2.5 are flagged as clinical outliers.
-    \item \textbf{Forecasting:} Implemented via \textbf{Linear Trend Estimation}, where the next 5 intervals are projected using the slope $m$ of the current window.
-    \item \textbf{Risk Assessment:} A rule-based classifier synthesizes the anomalies and trends into a discrete clinical status (Stable, Warning, Critical).
-\end{itemize}
+\subsection{Intelligence Layer: Statistical Signal Processing}
+The intelligence layer formulates the monitoring task as a \textbf{time-series anomaly detection and forecasting problem}. Computation is intentionally offloaded to the service layer to optimize resource allocation.
+
+\subsubsection{Rolling Z-Score Anomaly Detection}
+To distinguish between normal physiological variation and significant medical instability, the system calculates a rolling Z-score:
+\begin{equation}
+    Z(t) = \frac{v_t - \mu_{window}}{\sigma_{window}}
+    \label{eq:z_score}
+\end{equation}
+where $\mu$ is the mean and $\sigma$ is the standard deviation of the current $n$-sample window. A sensitivity threshold of $|Z| > 2.5$ is applied to flag anomalies, allowing the system to detect abrupt changes that might not yet have crossed absolute safety thresholds.
+
+\subsubsection{Short-Horizon Forecasting via OLS}
+To provide early-warning signals, the system performs \textbf{Ordinary Least Squares (OLS)} linear regression on the vitals history. The predicted value $y_{t+k}$ for $k$ steps ahead is:
+\begin{equation}
+    \hat{y}_{t+k} = m(t+k) + b
+    \label{eq:ols_prediction}
+\end{equation}
+where the slope $m$ is estimated as:
+\begin{equation}
+    m = \frac{n\sum(t_i y_i) - \sum t_i \sum y_i}{n\sum t_i^2 - (\sum t_i)^2}
+    \label{eq:ols_math}
+\end{equation}
+This allows for a 5-sample forecast ($\approx 5$ seconds at a 1\,Hz cadence), providing clinicians with a "direction of travel" for the patient's physiological state.
+
+\subsubsection{Critical Analysis of Intelligence Methodology}
+The choice of statistical modeling over deep learning is a deliberate engineering trade-off. While neural networks can capture non-linear relationships, they require significant labeled training data and GPU-compute resources that are inconsistent with the low-latency, "always-on" nature of a hospital monitoring station. The OLS and Z-score methods are deterministic, computationally efficient, and directly interpretable by medical staff, which is crucial for clinical accountability.
+
+\subsection{Face Recognition Methodology}
+Matching uses Euclidean distance with a confidence threshold of 0.6 (equivalent to a distance below 0.4). This threshold is selected to minimize false positives in a clinical environment where authorized staff must be identified reliably under varied lighting.
+
+\subsection{Alert Stabilization and Rate Limiting}
+The dashboard applies a multi-frame stability gate to reduce false positives. Let $N_s = 5$ be the required number of consecutive frames. Alerts for unknown persons and patient absence are triggered only when the condition persists for $N_s$ frames. An additional cooldown of 30--120\,s prevents repeated alerts for the same entity.
+
+\subsection{Algorithmic Pseudocode}
+
+\begin{algorithm}[H]
+\caption{ESP32 sensor update loop (Core 1)}
+\begin{algorithmic}[1]
+\STATE Every loop iteration:
+\IF{time since last DHT read $\geq 2\,s$}
+	\STATE read DHT22; update $T$, $H$ if valid
+\ENDIF
+\STATE drain MAX30102 FIFO; if $IR < 50{,}000$ reset BPM/SpO$_2$
+\STATE compute BPM from peak detection; update rolling mean
+\STATE compute SpO$_2$ from 100-sample buffer; shift buffer by 25 samples
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{Firebase upload task (Core 0)}
+\begin{algorithmic}[1]
+\STATE wait for Wi-Fi; initialize Firebase with email/password
+\LOOP
+	\STATE app.loop() to process auth events
+	\IF{Wi-Fi connected \AND app ready}
+		\IF{elapsed $\geq 1\,s$}
+			\STATE push room record if $|T-\hat{T}|>0.3$ or $|H-\hat{H}|>0.5$
+			\STATE push patient record if BPM changed or $|SpO_2-\hat{S}|>2$
+		\ENDIF
+	\ELSE
+		\STATE attempt reconnect every 10\,s; update Wi-Fi scan list
+	\ENDIF
+\ENDLOOP
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{Client-side face recognition loop}
+\begin{algorithmic}[1]
+\STATE every 600\,ms capture frame from camera
+\STATE detect faces and extract descriptors
+\FOR{each descriptor}
+	\STATE find best match; compute confidence
+	\IF{confidence $>0.6$}
+		\STATE log \texttt{person recognized} event
+	\ELSE
+		\STATE increment unknown counter
+	\ENDIF
+\ENDFOR
+\STATE issue alerts only if condition persists for $N_s$ frames
+\end{algorithmic}
+\end{algorithm}
 
 % ============================================================
 \section{Methodology Diagram}
@@ -116,48 +190,3 @@ complete system, from initial design through to deployment.
 	\label{fig:methodology}
 \end{figure}
 
-% flowchart TD
-%     %% Main Phases
-%     P1["1. System Design"]
-%     P2["2. Implementation"]
-%     P3["3. Debug Build"]
-%     P4["4. Validation"]
-%     P5["5. Release Build"]
-%     P6["6. Integration"]
-%     P7["7. Deployment"]
-%
-%     %% Sub-descriptions
-%     D1["Architecture, math model, pseudocode, schematics"]
-%     D2["Firmware, backend, web app, AI model"]
-%     D3["--debug build, serial + API logs"]
-%     D4["Sensor accuracy, latency, API tests, AI metrics"]
-%     D5["Production build, no serial overhead"]
-%     D6["End-to-end test:<br>ESP32 -> DB -> Dashboard -> AI"]
-%     D7["Flash + configure via AP, go live"]
-%
-%     %% Main sequential flow
-%     P1 --> P2
-%     P2 --> P3
-%     P3 --> P4
-%     P4 --> P5
-%     P5 --> P6
-%     P6 --> P7
-%
-%     %% Feedback loop
-%     P4 -- "fix & re-implement" --> P2
-%
-%     %% Dashed connections to sub-descriptions
-%     P1 -.-> D1
-%     P2 -.-> D2
-%     P3 -.-> D3
-%     P4 -.-> D4
-%     P5 -.-> D5
-%     P6 -.-> D6
-%     P7 -.-> D7
-%
-%     %% Styling to visually separate phases from descriptions
-%     classDef phase fill:#e0e8f5,stroke:#333,stroke-width:1px,rx:5px,ry:5px;
-%     classDef sub fill:#f2f2f2,stroke:#666,stroke-width:1px,rx:3px,ry:3px,font-size:12px;
-%
-%     class P1,P2,P3,P4,P5,P6,P7 phase;
-%     class D1,D2,D3,D4,D5,D6,D7 sub;

@@ -5,6 +5,8 @@
 \chapter{Discussion}
 \label{ch:discussion}
 
+This chapter interprets the validation evidence from Chapter~6, identifies limitations that affect clinical deployment, and prioritizes improvements without introducing results beyond those already measured.
+
 % ============================================================
 \section{Validity of Results}
 % ============================================================
@@ -20,10 +22,17 @@ The SpO\textsubscript{2} accuracy of $\pm$1\,\% is within the $\pm$2\,\% toleran
 generally accepted.
 
 \subsection{Backend and AI Subsystems}
-The backend results demonstrate high consistency in procedure execution, with tRPC overhead remaining negligible compared to the Firebase round-trip time. The AI forecasting accuracy (MAE of 1.2 BPM) is clinically valid for providing early-warning signals, although its performance is highly dependent on the quality of the incoming 1Hz telemetry stream. Anomaly detection showed high precision (0.94), successfully filtering out transient sensor noise while capturing sustained physiological deviations.
+The backend procedures are structurally consistent with the tRPC schema and are
+guarded by session-based authentication. Quantitative latency and accuracy metrics
+for AI inference remain to be measured in the deployment environment. The AI
+forecasting model is appropriate for short-horizon trend visualization but is
+expected to be sensitive to data quality and non-linear physiological transitions.
 
 \subsection{Web Dashboard Subsystem}
-The dashboard's performance is stable under continuous operation, with the WebWorker-based face recognition maintaining accurate personnel logs without impacting the real-time chart frame rates. The responsive design ensures that clinicians can monitor vitals across different device form factors with no loss of data fidelity.
+The dashboard operates with real-time updates and a 600\,ms face recognition loop.
+Face recognition executes on the main browser thread, so performance depends on
+the end-user device. The responsive design ensures that clinicians can monitor
+vitals across different device form factors with no loss of data fidelity.
 
 % ============================================================
 \section{Limitations}
@@ -62,14 +71,14 @@ The dashboard's performance is stable under continuous operation, with the WebWo
 \subsection{Web Dashboard Subsystem}
 \begin{description}
 	\item[High resource consumption.] The real-time chart rendering and local face-recognition models impose significant CPU and GPU load on the browser, which may reduce battery life on mobile devices.
-	\item[Browser-specific optimizations.] While cross-browser compatible, the system performs best in Chromium-based browsers due to advanced WebGL and WebWorker optimizations.
+	\item[Browser-specific optimizations.] While cross-browser compatible, the system performs best in Chromium-based browsers due to advanced WebGL optimizations.
 	\item[No persistent offline mode.] While the dashboard handles transient disconnections, it does not support full offline clinical record access.
 \end{description}
 
 \subsection{AI Subsystem}
 \begin{description}
-	\item[Linear trend assumptions.] The current forecasting model uses linear regression, which may fail to capture complex non-linear physiological events such as sudden cardiac arrythmias.
-	\item[Small baseline window.] The 20-point analysis window is sufficient for short-term insights but lacks the context of multi-hour or multi-day historical trends.
+	\item[Linear trend assumptions.] The current forecasting model uses linear regression, which may fail to capture complex non-linear physiological events such as sudden cardiac arrhythmias.
+	\item[Short baseline window.] The analysis window is short (target 20 points, minimum 5), providing only local context and limiting robustness during long-term drift.
 	\item[Data quality dependency.] The accuracy of anomaly detection is directly coupled to the ESP32's signal filtering; poor sensor contact results in a higher false-positive rate.
 \end{description}
 
@@ -85,15 +94,17 @@ The 8\,KiB task stack was found to be adequate for the TLS handshake and async s
 operations, with an estimated 1.5\,KiB headroom.
 
 The choice of string-based JSON construction introduces heap fragmentation over long
-sessions.
+sessions. This risk is partially mitigated by the 1\,Hz push interval but remains a
+concern for multi-day deployments.
 
 % ============================================================
 \section{Robustness}
 % ============================================================
 
 The unified \texttt{wifiConnect()} function using \texttt{WiFi.begin()} handles both
-cold-start failure and mid-session dropout correctly, as confirmed by Session~2 and
-Session~3 of the stability tests.
+cold-start failure and mid-session dropout correctly, as confirmed by the
+\textit{mid-session Wi-Fi dropout} and \textit{cold-start, Wi-Fi delayed} scenarios
+reported in Table~\ref{tab:stability}.
 
 The delta-threshold filter provides robustness against spurious sensor noise:
 fluctuations smaller than 0.3\,°C, 0.5\,\% RH, or 2\,\% SpO\textsubscript{2} do
@@ -104,13 +115,16 @@ low-information records in the database.
 \section{Identified Improvements}
 % ============================================================
 
-Priority improvements for future versions of the embedded subsystem:
+\subsection*{Embedded Subsystem}
+
+Priority improvements for future versions of the embedded firmware:
 
 \begin{enumerate}
 	\item \textbf{Local offline buffer.}
 	      A LittleFS-backed FIFO queue for records generated during network outages,
 	      with automatic retry on reconnection.
-	      This would eliminate the record loss observed in Sessions~2 and~3.
+	      This would eliminate the record loss observed in the dropout and cold-start
+	      stability scenarios.
 
 	\item \textbf{NVS encryption.}
 	      Enable the ESP32 native NVS encryption partition to protect credentials at rest.
@@ -123,9 +137,16 @@ Priority improvements for future versions of the embedded subsystem:
 	      Implement modem sleep between upload intervals to reduce average current usage for future battery-powered deployments.
 \end{enumerate}
 
+\subsection*{Backend, Web Dashboard, and AI Subsystems}
+
+Priority improvements for the server-side and client-side subsystems:
+
 \begin{enumerate}
-    \item \textbf{Deep Learning Models.} Migrating the AI layer to an LSTM (Long Short-Term Memory) or Transformer architecture to better capture non-linear physiological trends.
-    \item \textbf{PWA Support.} Implementing Progressive Web App (PWA) features to enable offline data caching and native push notifications for critical clinical alerts.
-    \item \textbf{Distributed Cache.} Adding a Redis-based caching layer for the tRPC backend to accelerate historical data retrieval for long-term patient records.
-    \item \textbf{Multi-Factor Authentication.} Enhancing security for clinical staff logins using hardware security keys or biometric verification.
+	\item \textbf{Deep Learning Models.} Migrating the AI layer to an LSTM (Long Short-Term Memory) or Transformer architecture to better capture non-linear physiological trends and improve forecasting accuracy during acute events.
+
+	\item \textbf{PWA Support.} Implementing Progressive Web App (PWA) features to enable offline data caching and native push notifications for critical clinical alerts, reducing dependency on an always-open browser tab.
+
+	\item \textbf{Distributed Cache.} Adding a Redis-based caching layer for the tRPC backend to accelerate historical data retrieval for long-term patient records and reduce Firestore read costs.
+
+	\item \textbf{Multi-Factor Authentication.} Enhancing security for clinical staff logins using hardware security keys or biometric verification to meet healthcare-grade access control standards.
 \end{enumerate}

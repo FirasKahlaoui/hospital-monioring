@@ -1,13 +1,9 @@
-% ============================================================
 %  CHAPTER 6 — Experimental Results and Validation
-% ============================================================
 
 \chapter{Experimental Results and Validation}
 \label{ch:results}
 
-% ============================================================
 \section{Experimental Protocol}
-% ============================================================
 
 \subsection{Embedded Subsystem Protocol}
 
@@ -25,99 +21,131 @@
 	      serial output.
 \end{description}
 
-% -------------------------------------------------------
-% TODO (Backend Team): describe the backend test protocol.
-% Specify: test environment (local / staging / production),
-% tools used (Postman, pytest, curl, etc.), number of
-% test cases, types of tests (unit, integration, load).
-% -------------------------------------------------------
 \subsection{Backend Protocol}
-The backend was validated using a \textbf{tRPC server-side caller} and \textbf{Vitest} for unit testing. The test environment consisted of a local Node.js v20 runtime and a Firestore emulator. A total of 15 integration test cases were executed, covering role-based authentication, schema validation, and SMTP relay reliability.
+The backend is validated using a \textbf{tRPC server-side caller} and
+\textbf{Vitest} for unit testing. The test environment targets a local Node.js
+runtime and optionally a Firestore emulator. Test cases cover authentication,
+schema validation, and alert/notification procedures.
 
 \subsection{Web Dashboard Protocol}
-The dashboard was tested across Chrome, Firefox, and Safari on both Windows and MacOS. Real-time update latency was measured using the \textbf{Chrome DevTools Performance profiler}. Test scenarios included multi-patient monitoring views (up to 5 concurrent streams) and automated face detection triggers for authorized and unauthorized personnel.
+The dashboard should be tested across Chrome and Firefox on both Windows and Linux.
+Real-time update latency can be measured using the \textbf{Chrome DevTools Performance profiler}. Test scenarios include multi-patient monitoring views (up to 5 concurrent streams) and automated face detection triggers for authorized and unauthorized personnel.
 
 \subsection{AI Protocol}
-The AI subsystem was evaluated using a \textbf{synthetic clinical dataset} of 500 data points containing simulated vital sign transitions (e.g., resting to tachycardia). Evaluation metrics included \textbf{Mean Squared Error (MSE)} for forecasting accuracy and \textbf{F1-score} for anomaly detection precision and recall. Tests were performed on the Node.js service layer with a 20-point sliding window.
+The AI subsystem is evaluated using synthetic clinical datasets containing
+simulated vital sign transitions (e.g., resting to tachycardia). Evaluation
+metrics include \textbf{Mean Squared Error (MSE)} for forecasting accuracy and
+\textbf{F1-score} for anomaly detection precision and recall. Tests are executed
+on the Node.js service layer using the same sliding-window inputs as the
+dashboard.
 
-% ============================================================
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth]{Validation Pipeline.png}
+    \caption{System-wide validation pipeline from hardware to cloud reporting.}
+    \label{fig:validation_pipeline}
+\end{figure}
+
 \section{Software Results (PC / Server)}
-% ============================================================
 
-% -------------------------------------------------------
-% TODO (Backend Team): report API performance metrics
-% measured on the server side:
-\section{Software Results (PC / Server)}
-
-\begin{table}[H]
-	\centering
-	\caption{Backend API performance metrics.}
-	\label{tab:backend_results}
-	\begin{tabular}{lll}
-		\toprule
-		\textbf{Endpoint} & \textbf{Latency (Avg)} & \textbf{Success Rate} \\
-		\midrule
-		\texttt{people.list} & 45\,ms & 100\% \\
-		\texttt{patients.get} & 32\,ms & 100\% \\
-		\texttt{events.log} & 28\,ms & 99.8\% \\
-		\texttt{ai.getInsights} & 55\,ms & 99.5\% \\
-		\bottomrule
-	\end{tabular}
-\end{table}
-
-\begin{table}[H]
-	\centering
-	\caption{AI model evaluation results.}
-	\label{tab:ai_results}
-	\begin{tabular}{lll}
-		\toprule
-		\textbf{Task} & \textbf{Metric} & \textbf{Value} \\
-		\midrule
-		Anomaly Detection & F1-Score & 0.92 \\
-		Anomaly Detection & Precision & 0.94 \\
-		Vital Forecasting & MAE (HR) & 1.2 BPM \\
-		Vital Forecasting & RMSE (SpO2) & 0.8\% \\
-		\bottomrule
-	\end{tabular}
-\end{table}
+The repository includes automated tests for authentication logout, events logging,
+alert creation, and patient CRUD flows (\texttt{alerts.test.ts},
+\texttt{events.test.ts}, \texttt{patients.test.ts}). These tests validate the
+shape of API responses and enforce consistent procedure behavior. Formal
+performance benchmarks (latency, throughput) are not yet recorded and remain a
+required measurement in the final validation campaign.
 
 % ============================================================
 \section{Embedded Results (ESP32)}
 % ============================================================
 
+Formal sensor accuracy measurements are not included in the codebase and should
+be collected using a calibrated reference device. The embedded implementation
+applies guards to reject NaN readings from the DHT22 and invalid IR levels from
+the MAX30102, ensuring data integrity at the source.
 
-% ============================================================
-\section{Latency and FPS Analysis}
-% ============================================================
-
-% -------------------------------------------------------
-% TODO (all teams): fill in the comparative latency table
-% below for the complete system once all subsystems are
-% available. Add rows for backend API latency and AI
-% inference latency.
-% -------------------------------------------------------
+Table~\ref{tab:stability} provides a template for reporting Wi-Fi recovery and
+data continuity once measurements are collected.
 
 \begin{table}[H]
 	\centering
-	\caption{System-wide latency comparison.}
-	\label{tab:latency_full}
-	\begin{tabular}{lccc}
+	\caption{System stability and recovery validation results.}
+	\label{tab:stability}
+	\begin{tabular}{lcc}
 		\toprule
-		\textbf{Stage}              & \textbf{PC/Server}               & \textbf{ESP32}          & \textbf{Analysis}           \\
+		\textbf{Scenario}               & \textbf{Recovery Time} & \textbf{Records Lost}             \\
 		\midrule
-		Sensor acquisition          & N/A                              & $\leq$2\,000\,ms        & Hardware constraint (DHT22) \\
-		Local processing            & N/A                              & $<$5\,ms                & Negligible                  \\
-		HTTPS upload (steady state) & N/A                              & 120--280\,ms            & RTT to Firebase             \\
-		Backend API response        & 28--55\,ms                       & N/A                     & tRPC Overhead               \\
-		AI inference                & 8--15\,ms                        & N/A                     & Vector processing           \\
-		End-to-end (sensor to UI)   & \multicolumn{2}{c}{180--450\,ms} & Real-time compliant                         \\
+		Normal 15-min session           & TBD                    & TBD                               \\
+		Mid-session Wi-Fi dropout       & TBD                    & TBD                               \\
+		Cold-start, Wi-Fi delayed 30\,s & TBD                    & TBD                               \\
 		\bottomrule
 	\end{tabular}
 \end{table}
 
 % ============================================================
-\section{Comparison: Specification vs.\ Observed Behaviour}
+\section{Latency and FPS Analysis}
+A critical requirement for clinical monitoring is the deterministic timing of the data pipeline. Table~\ref{tab:perf_comp} compares the performance characteristics of the PC-based dashboard and the ESP32 edge node.
+
+\begin{table}[H]
+	\centering
+	\caption{Performance and throughput comparison: PC vs. ESP32.}
+	\label{tab:perf_comp}
+	\begin{tabularx}{\linewidth}{lXX}
+		\toprule
+		\textbf{Metric} & \textbf{Dashboard (PC)} & \textbf{Embedded (ESP32)} \\
+		\midrule
+		Primary Frequency & 2.4 -- 4.8 GHz & 240 MHz \\
+		Operating Context & Browser (V8 Engine) & FreeRTOS (Native C++) \\
+		Processing Loop & 600\,ms (Face Recognition) & 25\,ms (PPG Sampling) \\
+		Effective FPS & $\approx$1.6 FPS (Visual) & 1.0 FPS (Firebase Push) \\
+		Latency Bottleneck & WebGL Rendering & TLS Handshake / RTT \\
+		Memory Footprint & $\approx$200--500 MB & $<$520 KB SRAM \\
+		\bottomrule
+	\end{tabularx}
+\end{table}
+
+\subsection{Latency Analysis}
+The end-to-end latency is dominated by the network round-trip time (RTT) and the periodic nature of the push cycle. With \texttt{FIREBASE\_INTERVAL\_MS} set to 1,000\,ms, the maximum theoretical delay from a physiological event to a database update is:
+\begin{equation}
+    T_{max} = T_{interval} + T_{RTT} + T_{proc} \approx 1000 + 300 + 5 = 1305\,\text{ms}
+\end{equation}
+The dashboard compensates for this by using a high-frequency WebSocket subscription to the RTDB, ensuring that once the data reaches the cloud, it is rendered on the clinician's screen in less than 100\,ms.
+
+\subsection{FPS and Throughput Constraints}
+The system operates at two distinct "clock" domains:
+\begin{enumerate}
+    \item \textbf{Telemetry Domain (1 Hz):} Constrained by the ESP32 upload task and the DHT22 recovery time.
+    \item \textbf{Visual Intelligence Domain ($\approx$1.6 Hz):} Constrained by the 600\,ms capture-and-inference loop of the face recognition pipeline.
+\end{enumerate}
+This decoupled timing ensures that visual processing (which is computationally expensive) does not block the receipt or display of critical vital signs.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\linewidth]{ESP32 Communication Flow.png}
+    \caption{ESP32 state machine and Wi-Fi/Firebase communication flow.}
+    \label{fig:esp32_flow}
+\end{figure}
+
+\subsection{Theoretical Model vs.\ Observed System Behaviour}
+
+The latency model defined in Chapter~4 (Equation~\ref{eq:latency}) provides a framework
+for expected end-to-end latency. Empirical validation is required to quantify RTT
+and TLS overhead in the deployment environment.
+
+The delta-threshold filter is expected to suppress redundant uploads during
+steady-state monitoring (constant vitals). Quantifying the reduction in write
+volume requires a controlled test that logs raw and filtered streams.
+
+The AI forecasting model, based on OLS linear regression over a short window,
+assumes near-linear short-term dynamics. This assumption is appropriate for
+stable resting conditions but is expected to degrade during rapid transitions.
+Future work should quantify this effect with controlled datasets.
+
 % ============================================================
+\section{Comparison: Design Specification vs.\ Observed Behaviour}
+% ============================================================
+
+\subsection{Specification vs.\ Implementation (Embedded Subsystem)}
 
 Table~\ref{tab:comparison} compares the functional requirements from the project
 specification against the observed behaviour of the implemented embedded subsystem.
@@ -154,19 +182,51 @@ specification against the observed behaviour of the implemented embedded subsyst
 
 \begin{table}[H]
 	\centering
-	\caption{Specification vs.\ implementation validation for backend and web.}
+	\caption{Specification vs.\ implementation mapping for backend and web.}
 	\label{tab:comparison_full}
 	\begin{tabularx}{\linewidth}{lXX}
 		\toprule
-		\textbf{Requirement} & \textbf{Expected} & \textbf{Observed} \\
+		\textbf{Requirement} & \textbf{Expected} & \textbf{Implementation Evidence} \\
 		\midrule
-		Real-time Updates & Update UI in < 1\,s & \cmark\ Avg latency 320\,ms \\
-		AI Forecasting & 5-minute trend accuracy & \cmark\ MAE < 2.0 BPM \\
-		Face Recognition & Authorized staff login & \cmark\ 92\% accuracy at 2m \\
-		Email Alerting & Dispatch on critical event & \cmark\ Delivered in < 5\,s \\
+		Real-time updates & Update UI in < 1\,s & \cmark\ RTDB subscriptions with 1\,Hz data push \\
+		AI forecasting & Short-horizon trend & \cmark\ 5-step OLS forecast in \texttt{ai.getInsights} \\
+		Face recognition & Authorized staff detection & \cmark\ face-api.js + 0.6 confidence threshold \\
+		Email alerting & Dispatch on critical event & \cmark\ SMTP relay procedure invoked by dashboard \\
 		\bottomrule
 	\end{tabularx}
 \end{table}
+
+\subsection{Facial Recognition and Alerting Validation}
+
+To validate the integration of the face recognition pipeline and the automated alerting system, a sequential test was performed in the live environment. The system successfully identified personnel, logging their presence in the dashboard, and subsequently sent an email alert upon detecting an unauthorized individual.
+
+First, the system continuously analyzes the camera feed to detect human faces. Figure~\ref{fig:face_detection_dashboard} demonstrates the dashboard picking up facial features in real-time.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{face_detection_dashboard.png}
+    \caption{Dashboard capturing a face using the built-in webcam feed and returning the bounding box.}
+    \label{fig:face_detection_dashboard}
+\end{figure}
+
+Once a face is recognized against the pre-enrolled profiles stored within the database, the dashboard immediately updates the ``People in Room'' log. Figure~\ref{fig:persons_in_room} illustrates the dashboard accurately identifying authorized personnel present in the room.
+
+\begin{figure}[H]
+    \centering
+	\includegraphics[width=190pt]{persons_in_room_dashboard.png}
+    \caption{Dashboard recognizing enrolled users and logging them in the authorized personnel list.}
+    \label{fig:persons_in_room}
+\end{figure}
+
+Simultaneously, the detection of an unknown or unauthorized individual triggers the backend alert pipeline. The event logs an anomaly in the database, and an SMTP procedure is invoked to notify the designated clinical staff. Figure~\ref{fig:unknown_person_mail} shows the automated email delivered through the system upon unauthorized entry.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{unknown_person_mail.png}
+    \caption{Email notification sent via SMTP relay alerting staff of an unknown person in the room.}
+    \label{fig:unknown_person_mail}
+\end{figure}
+
 
 % ============================================================
 \section{Error Analysis}
@@ -177,10 +237,9 @@ specification against the observed behaviour of the implemented embedded subsyst
 Three categories of error were identified and analysed:
 
 \textbf{Sensor read errors.}
-The DHT22 occasionally returns NaN on the first read after power-up due to its
-required 1-second warm-up delay.
-The NaN guard in \texttt{updateSensors()} discards the invalid reading silently.
-No invalid values were written to the database in any test session.
+The DHT22 can return NaN on the first read after power-up due to its required
+warm-up delay. The NaN guard in \texttt{updateSensors()} discards invalid readings
+before they can be uploaded.
 
 \textbf{Records lost during outage (open).}
 Records generated during a Wi-Fi outage are discarded.
@@ -188,11 +247,15 @@ The system does not implement local buffering or retry-on-reconnect.
 
 \subsection{Backend, Web Dashboard, and AI Subsystems}
 
-\textbf{Authentication Timeouts.}
-During long monitoring sessions, Firebase ID tokens may expire. The dashboard was updated to include an \texttt{authInterceptor} that automatically refreshes the token, ensuring uninterrupted API access.
+\textbf{Authentication expiry (open).}
+Session cookies are signed and have a fixed expiration; a renewal mechanism is not
+implemented in the current dashboard and should be added for long-lived sessions.
 
-\textbf{Web Worker Contention.}
-Running face-api.js on the main thread caused occasional UI stutter during chart rendering. This was resolved by moving the neural network inference to a dedicated Web Worker, isolating the computational load from the rendering thread.
+\textbf{Main-thread inference load (open).}
+Face recognition runs on the main browser thread. Under heavy chart rendering or
+low-power devices, this can lead to UI stutter; a dedicated Web Worker pipeline is
+recommended for performance isolation.
 
-\textbf{AI False Positives.}
-The Z-score model occasionally flagged sensor "noise" (e.g., finger movement) as a clinical anomaly. To mitigate this, a temporal persistence filter was added: an anomaly is only reported if it persists for more than 3 consecutive samples.
+\textbf{AI false positives (open).}
+The Z-score model can flag short transient noise. A temporal persistence filter for
+AI anomalies is not yet implemented and should be added to reduce alert noise.
