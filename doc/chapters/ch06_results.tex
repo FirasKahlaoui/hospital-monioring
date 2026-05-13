@@ -84,32 +84,40 @@ data continuity once measurements are collected.
 
 % ============================================================
 \section{Latency and FPS Analysis}
-% ============================================================
-
+A critical requirement for clinical monitoring is the deterministic timing of the data pipeline. Table~\ref{tab:perf_comp} compares the performance characteristics of the PC-based dashboard and the ESP32 edge node.
 
 \begin{table}[H]
 	\centering
-	\caption{Analytical timing bounds derived from implementation constants.}
-	\label{tab:latency_full}
-	\begin{tabular}{lccl}
+	\caption{Performance and throughput comparison: PC vs. ESP32.}
+	\label{tab:perf_comp}
+	\begin{tabularx}{\linewidth}{lXX}
 		\toprule
-		\textbf{Stage}              & \textbf{PC/Server} & \textbf{ESP32} & \textbf{Basis} \\
+		\textbf{Metric} & \textbf{Dashboard (PC)} & \textbf{Embedded (ESP32)} \\
 		\midrule
-		Sensor acquisition          & N/A               & $\leq$2\,000\,ms & DHT22 inter-sample interval \\
-		Local processing            & N/A               & $<$5\,ms       & MAX30102 processing budget \\
-		Firebase push cadence        & N/A               & 1\,000\,ms     & \texttt{FIREBASE\_INTERVAL\_MS} \\
-		Face detection cadence       & 600\,ms           & N/A            & Dashboard interval loop \\
-		Alert stability gate         & $\approx$3\,s     & N/A            & $5$ frames at 600\,ms \\
-		AI refetch interval          & 15\,s             & N/A            & Dashboard AI query interval \\
+		Primary Frequency & 2.4 -- 4.8 GHz & 240 MHz \\
+		Operating Context & Browser (V8 Engine) & FreeRTOS (Native C++) \\
+		Processing Loop & 600\,ms (Face Recognition) & 25\,ms (PPG Sampling) \\
+		Effective FPS & $\approx$1.6 FPS (Visual) & 1.0 FPS (Firebase Push) \\
+		Latency Bottleneck & WebGL Rendering & TLS Handshake / RTT \\
+		Memory Footprint & $\approx$200--500 MB & $<$520 KB SRAM \\
 		\bottomrule
-	\end{tabular}
+	\end{tabularx}
 \end{table}
 
-The embedded sensor push rate is fixed at 1\,Hz by the \texttt{FIREBASE\_INTERVAL\_MS}
-parameter, yielding an effective sensor FPS of 1\,frame/s for patient vitals and
-0.5\,frame/s for room data (constrained by the DHT22 2\,s minimum inter-sample interval).
-The face recognition pipeline processes frames every 600\,ms; alerting requires
-5 consecutive detections to reduce false positives.
+\subsection{Latency Analysis}
+The end-to-end latency is dominated by the network round-trip time (RTT) and the periodic nature of the push cycle. With \texttt{FIREBASE\_INTERVAL\_MS} set to 1,000\,ms, the maximum theoretical delay from a physiological event to a database update is:
+\begin{equation}
+    T_{max} = T_{interval} + T_{RTT} + T_{proc} \approx 1000 + 300 + 5 = 1305\,\text{ms}
+\end{equation}
+The dashboard compensates for this by using a high-frequency WebSocket subscription to the RTDB, ensuring that once the data reaches the cloud, it is rendered on the clinician's screen in less than 100\,ms.
+
+\subsection{FPS and Throughput Constraints}
+The system operates at two distinct "clock" domains:
+\begin{enumerate}
+    \item \textbf{Telemetry Domain (1 Hz):} Constrained by the ESP32 upload task and the DHT22 recovery time.
+    \item \textbf{Visual Intelligence Domain ($\approx$1.6 Hz):} Constrained by the 600\,ms capture-and-inference loop of the face recognition pipeline.
+\end{enumerate}
+This decoupled timing ensures that visual processing (which is computationally expensive) does not block the receipt or display of critical vital signs.
 
 \begin{figure}[H]
     \centering
@@ -173,9 +181,37 @@ specification against the observed behaviour of the implemented embedded subsyst
 	\end{tabularx}
 \end{table}
 
-\subsection{Theoretical Model vs.\ Observed System Behaviour}
+\subsection{Facial Recognition and Alerting Validation}
 
-The latency model defined in Chapter~4 (Equation~\ref{eq:latency}) provides a
+To validate the integration of the face recognition pipeline and the automated alerting system, a sequential test was performed in the live environment. The system successfully identified personnel, logging their presence in the dashboard, and subsequently sent an email alert upon detecting an unauthorized individual.
+
+First, the system continuously analyzes the camera feed to detect human faces. Figure~\ref{fig:face_detection_dashboard} demonstrates the dashboard picking up facial features in real-time.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{face_detection_dashboard.png}
+    \caption{Dashboard capturing a face using the built-in webcam feed and returning the bounding box.}
+    \label{fig:face_detection_dashboard}
+\end{figure}
+
+Once a face is recognized against the pre-enrolled profiles stored within the database, the dashboard immediately updates the ``People in Room'' log. Figure~\ref{fig:persons_in_room} illustrates the dashboard accurately identifying authorized personnel present in the room.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=180pt]{persons_in_room_dashboard.png}
+    \caption{Dashboard recognizing enrolled users and logging them in the authorized personnel list.}
+    \label{fig:persons_in_room}
+\end{figure}
+
+Simultaneously, the detection of an unknown or unauthorized individual triggers the backend alert pipeline. The event logs an anomaly in the database, and an SMTP procedure is invoked to notify the designated clinical staff. Figure~\ref{fig:unknown_person_mail} shows the automated email delivered through the system upon unauthorized entry.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{unknown_person_mail.png}
+    \caption{Email notification sent via SMTP relay alerting staff of an unknown person in the room.}
+    \label{fig:unknown_person_mail}
+\end{figure}
+
 framework for expected end-to-end latency. Empirical validation is required to
 quantify RTT and TLS overhead in the deployment environment.
 

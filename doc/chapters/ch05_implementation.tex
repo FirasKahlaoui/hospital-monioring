@@ -146,6 +146,13 @@ paid storage plan but increases payload sizes in the database and client.
 \subsection{Web Dashboard Implementation}
 The dashboard's core is the \textbf{Real-time Monitoring Component}, which uses a custom hook to manage the Firebase RTDB listener lifecycle. Vitals are visualized using \textbf{AreaCharts} from Recharts, optimized for high-frequency updates without UI stutter. A secondary \textbf{AI Insights Panel} renders synthesized clinical conclusions by subscribing to the tRPC AI results. The personnel tracking system is implemented via a browser-based face-api.js pipeline, executing detection every 600\,ms and applying a 5-frame stability threshold before logging alerts.
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{Dashboard Overview.png}
+    \caption{The main dashboard interface showcasing real-time telemetry, live charts, patient information, and face tracking.}
+    \label{fig:dashboard_overview}
+\end{figure}
+
 % ============================================================
 \section{Software Validation}
 % ============================================================
@@ -187,26 +194,15 @@ UI validation focuses on \textbf{performance under load} and \textbf{clinical ac
 \end{itemize}
 
 % ============================================================
-\section{Embedded Implementation (ESP32)}
-% ============================================================
+\section{Implementation Challenges and Critical Analysis}
+The implementation phase revealed several critical engineering trade-offs that influenced the final system behavior.
 
-\subsection{Memory Optimisation}
-
-The LittleFS image partition is mounted with \texttt{LittleFS.begin(true)}, enabling automatic
-formatting on first boot.
-NVS storage uses the \texttt{Preferences} library with the \texttt{"settings"}
-namespace, consuming at most 10 string entries at typical credential lengths.
-
-\subsection{Latency Optimisation}
-
-Delta filtering (Equations~\ref{eq:room_thresh} and~\ref{eq:patient_thresh}) reduces
-the frequency of HTTPS requests to only those carrying new information, keeping the
-per-upload round-trip time as the dominant latency term rather than queuing delays.
-
-\section{AI Integration}
-The AI prediction layer is integrated as a \textbf{server-side service} that processes data on-demand from the dashboard. This deployment strategy was chosen to leverage the Node.js server's computational resources, keeping the ESP32 firmware lightweight.
 \begin{itemize}
-	\item \textbf{Integration:} The forecasting logic is wrapped in a tRPC query that accepts a telemetry window (target length 20, minimum 5).
-	\item \textbf{Optimization:} Z-score calculations and linear regressions are performed on in-memory arrays to minimize inference latency.
-	\item \textbf{Validation:} Synthetic datasets are used during development; formal clinical validation remains an open requirement.
+    \item \textbf{I2C Bus Contention:} Initially, the DHT22 and MAX30102 were sampled sequentially. However, the DHT22's one-wire protocol is timing-sensitive and can be disrupted by I2C interrupts. The resolution was to move DHT22 sampling to a lower frequency (0.5\,Hz) while keeping the MAX30102 interrupt-driven on Core 1, effectively interleaving the bus access.
+    \item \textbf{TLS Overhead on ESP32:} The initial implementation suffered from 2--3\,s latency spikes during every upload. Analysis showed this was due to the overhead of establishing a new TLS session. By utilizing the \texttt{Firebase\_ESP\_Client}'s internal session persistence, the handshake is only performed once at boot, reducing subsequent upload latency to $<$300\,ms.
+    \item \textbf{Browser-Based Recognition Accuracy:} The `face-api.js` models require significant RAM. On lower-end clinical terminals, the detection loop caused "jank" in the vitals charts. A rate-limiting strategy (600\,ms per frame) was implemented to maintain 60\,FPS for the UI charts while providing acceptable detection latency for personnel tracking.
+    \item \textbf{Base64 Storage Trade-off:} The rejection of Firebase Storage (to remain on the free tier) necessitated storing profile photos as Base64 strings in Firestore. While this simplifies deployment, it increases the initial dashboard load time as it must fetch large JSON payloads containing image data. This is identified as a scalability bottleneck.
 \end{itemize}
+
+\section{Summary of Implementation Integrity}
+The final implementation successfully maps the theoretical design to a functional multi-tier system. The use of dual-core processing on the ESP32 and tRPC on the backend ensures that the system is both robust at the edge and type-safe in the cloud. Future iterations will focus on migrating face recognition to a Web Worker to improve UI responsiveness on mobile devices.

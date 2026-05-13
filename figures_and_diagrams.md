@@ -382,3 +382,70 @@ Mermaid is not suitable for UI layout. The figure should include:
 - Insight text block
 - Mini chart with 5-step forecast overlay
 - Timestamp of last inference
+
+# Use Case Diagrams
+
+Insert in: Section 2.2 (Use Cases)
+
+Purpose:
+Visualizes the interactions between actors and the system across all subsystems.
+
+## Figure 2.2 — Embedded Subsystem Use Cases
+```mermaid
+flowchart LR
+  Tech((Technician))
+  
+  subgraph ESP32["ESP32 Embedded subsystem<br>"]
+
+
+    direction LR
+    UC1([Initial Configuration])
+    UC2([Normal Operation])
+    UC3([Wi-Fi Recovery])
+    UC4([Remote Reconfiguration])
+    UC5([Sensor Fault Detection])
+  end
+  
+  Tech --- UC1
+  Tech --- UC4
+  UC2 --- Auto1(Auto-run)
+  UC3 --- Auto1(Auto-run)
+  UC5 --- Auto3(Auto-run)
+```
+
+## Figure 2.3 — Backend and Dashboard Use Cases
+```mermaid
+flowchart LR
+  Staff((Medical Staff))
+  Admin((Admin/Tech))
+  
+  subgraph Cloud["Cloud & Dashboard Services<br>"]
+    direction LR
+    UC6([Auth & RBAC])
+    UC7([Data Sync])
+    UC8([Alert Dispatch])
+    UC9([Real-time Vitals])
+    UC10([Face Tracking])
+  end
+  
+  Staff --- UC6
+  Staff --- UC9
+  Staff --- UC10
+  Admin --- UC7
+  UC8 --- Trigger(System Trigger)
+```
+
+## Figure 2.4 — AI Subsystem Use Cases
+```mermaid
+flowchart LR
+  Staff((Medical Staff))
+  
+  subgraph AI["AI Intelligence Layer<br>"]
+    direction LR
+    UC11([Anomaly Detection])
+    UC12([Vital Forecasting])
+  end
+  
+  Staff --- UC11
+  Staff --- UC12
+```

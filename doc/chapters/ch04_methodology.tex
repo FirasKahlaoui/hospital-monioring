@@ -90,34 +90,38 @@ The backend logic is centered on a \textbf{typed procedure layer} with session-b
 \subsection{Web Dashboard Subsystem Methodology}
 The dashboard utilizes a \textbf{reactive component architecture} built with React Hooks. It maintains a real-time connection to the Firebase Realtime Database using a WebSocket-based subscription model. For security and presence tracking, the methodology includes local inference using \textbf{face-api.js} to detect and identify authorized medical personnel. Visualizations are rendered using a rolling buffer of vitals, updated every 1,000\,ms to maintain a high-fidelity trend view. A camera detection loop runs every 600\,ms; alerts are issued only after a stability threshold of 5 consecutive frames.
 
-\subsection{AI Subsystem Methodology}
-The AI subsystem formulates the monitoring task as a \textbf{time-series anomaly detection and forecasting problem}.
-\begin{itemize}
-		\item \textbf{Anomaly Detection:} Calculated via the Z-score $z = \frac{x - \mu}{\sigma}$ over a sliding window of the most recent samples (target length 20, minimum 5). Values exceeding a magnitude of 2.5 are flagged as outliers.
-		\item \textbf{Forecasting:} Implemented via \textbf{Linear Trend Estimation}, where the next 5 samples are projected using the slope $m$ of the current window.
-		\item \textbf{Risk Assessment:} A rule-based classifier synthesizes the anomalies and trends into a discrete clinical status (stable, warning, critical).
-\end{itemize}
+\subsection{Intelligence Layer: Statistical Signal Processing}
+The intelligence layer formulates the monitoring task as a \textbf{time-series anomaly detection and forecasting problem}. Computation is intentionally offloaded to the service layer to optimize resource allocation.
+
+\subsubsection{Rolling Z-Score Anomaly Detection}
+To distinguish between normal physiological variation and significant medical instability, the system calculates a rolling Z-score:
+\begin{equation}
+    Z(t) = \frac{v_t - \mu_{window}}{\sigma_{window}}
+    \label{eq:z_score}
+\end{equation}
+where $\mu$ is the mean and $\sigma$ is the standard deviation of the current $n$-sample window. A sensitivity threshold of $|Z| > 2.5$ is applied to flag anomalies, allowing the system to detect abrupt changes that might not yet have crossed absolute safety thresholds.
+
+\subsubsection{Short-Horizon Forecasting via OLS}
+To provide early-warning signals, the system performs \textbf{Ordinary Least Squares (OLS)} linear regression on the vitals history. The predicted value $y_{t+k}$ for $k$ steps ahead is:
+\begin{equation}
+    \hat{y}_{t+k} = m(t+k) + b
+    \label{eq:ols_prediction}
+\end{equation}
+where the slope $m$ is estimated as:
+\begin{equation}
+    m = \frac{n\sum(t_i y_i) - \sum t_i \sum y_i}{n\sum t_i^2 - (\sum t_i)^2}
+    \label{eq:ols_math}
+\end{equation}
+This allows for a 5-sample forecast ($\approx 5$ seconds at a 1\,Hz cadence), providing clinicians with a "direction of travel" for the patient's physiological state.
+
+\subsubsection{Critical Analysis of Intelligence Methodology}
+The choice of statistical modeling over deep learning is a deliberate engineering trade-off. While neural networks can capture non-linear relationships, they require significant labeled training data and GPU-compute resources that are inconsistent with the low-latency, "always-on" nature of a hospital monitoring station. The OLS and Z-score methods are deterministic, computationally efficient, and directly interpretable by medical staff, which is crucial for clinical accountability.
 
 \subsection{Face Recognition Methodology}
-
-The face recognition pipeline executes fully in the browser, using a webcam stream
-and pre-trained face-api.js models (TinyFaceDetector, FaceLandmark68Net,
-FaceRecognitionNet, FaceExpressionNet). Each detected face produces a descriptor
-vector $\mathbf{d} \in \mathbb{R}^{128}$. Matching uses Euclidean distance with a
-confidence threshold of 0.6 (equivalent to a distance below 0.4):
-
-\begin{equation}
-\text{confidence} = 1 - \lVert \mathbf{d}_{\text{det}} - \mathbf{d}_{\text{enrolled}} \rVert_2
-\label{eq:face_confidence}
-\end{equation}
+Matching uses Euclidean distance with a confidence threshold of 0.6 (equivalent to a distance below 0.4). This threshold is selected to minimize false positives in a clinical environment where authorized staff must be identified reliably under varied lighting.
 
 \subsection{Alert Stabilization and Rate Limiting}
-
-The dashboard applies a multi-frame stability gate to reduce false positives.
-Let $N_s = 5$ be the required number of consecutive frames. Alerts for unknown
-persons and patient absence are triggered only when the condition persists for
-$N_s$ frames. An additional cooldown of 30--120\,s prevents repeated alerts for
-the same entity, and SMTP emails are rate limited with a 15-minute cooldown.
+The dashboard applies a multi-frame stability gate to reduce false positives. Let $N_s = 5$ be the required number of consecutive frames. Alerts for unknown persons and patient absence are triggered only when the condition persists for $N_s$ frames. An additional cooldown of 30--120\,s prevents repeated alerts for the same entity.
 
 \subsection{Algorithmic Pseudocode}
 

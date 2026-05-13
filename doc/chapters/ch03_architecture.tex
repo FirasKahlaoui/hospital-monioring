@@ -168,3 +168,11 @@ to cloud record, proceeds as follows:
 	\caption{Real-time data processing and alerting sequence from sensor to dashboard.}
 	\label{fig:data_sequence}
 \end{figure}
+\section{Design Justification and Critical Analysis}
+The choice of a multi-tier architectural pattern is justified by the heterogeneous nature of the system's requirements. 
+
+\begin{itemize}
+    \item \textbf{Edge vs. Cloud Processing:} While basic vitals derivation (BPM/SpO2) occurs on the ESP32 to ensure raw signal integrity, higher-level clinical analytics (Z-score, OLS forecasting) are offloaded to the Node.js service layer. This prevents saturating the ESP32's CPU and allows the use of floating-point math and array processing libraries not easily available in embedded C++.
+    \item \textbf{Database Hybridization:} The use of two distinct Firebase services (Firestore and RTDB) addresses the conflict between high-frequency telemetry and persistent medical records. RTDB's WebSocket-based push model provides the sub-second latency required for live monitoring, while Firestore's document-oriented structure is better suited for managing complex identities and audit logs.
+    \item \textbf{Browser-Based Inference:} Executing face recognition in the browser using `face-api.js` eliminates the need for expensive GPU-enabled backend servers for video processing. This "edge-of-the-cloud" approach utilizes the end-user terminal's resources, ensuring that the system scales horizontally as more dashboard instances are deployed.
+\end{itemize}
