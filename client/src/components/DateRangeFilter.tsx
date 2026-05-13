@@ -12,31 +12,36 @@ interface DateRangeFilterProps {
 export function DateRangeFilter({ onDateRangeChange }: DateRangeFilterProps) {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [open, setOpen] = useState(false);
+
+  const toDate = (value: string) => (value ? new Date(value) : null);
+
+  const toInclusiveEnd = (value: string) => {
+    if (!value) return null;
+    const end = new Date(value);
+    end.setSeconds(59, 999);
+    return end;
+  };
 
   const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setStartDate(value);
-    const start = value ? new Date(value) : null;
-    const end = endDate ? new Date(endDate) : null;
-    onDateRangeChange(start, end);
   };
 
   const handleEndDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setEndDate(value);
-    const start = startDate ? new Date(startDate) : null;
-    const end = value ? new Date(value) : null;
-    onDateRangeChange(start, end);
   };
 
   const handleClear = () => {
     setStartDate("");
     setEndDate("");
     onDateRangeChange(null, null);
+    setOpen(false);
   };
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="outline" className="gap-2">
           <Calendar className="w-4 h-4" />
@@ -69,10 +74,19 @@ export function DateRangeFilter({ onDateRangeChange }: DateRangeFilterProps) {
               size="sm"
               onClick={handleClear}
               className="flex-1"
+              type="button"
             >
               Clear
             </Button>
-            <Button size="sm" className="flex-1">
+            <Button
+              size="sm"
+              className="flex-1"
+              type="button"
+              onClick={() => {
+                onDateRangeChange(toDate(startDate), toInclusiveEnd(endDate));
+                setOpen(false);
+              }}
+            >
               Apply
             </Button>
           </div>
