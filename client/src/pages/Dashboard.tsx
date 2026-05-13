@@ -2,28 +2,28 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useFaceDetection } from "@/hooks/useFaceDetection";
 import { database } from "@/lib/firebase";
-import { ref, onValue, query, limitToLast, orderByChild, startAt, endAt } from "firebase/database";
+import { ref, onValue, query, limitToLast, orderByChild, startAt, endAt, get } from "firebase/database";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Camera, AlertCircle, CheckCircle, Clock, Loader2, User, UserCheck, Shield, Users, HeartPulse, Activity, Thermometer, Droplets, Settings2, BellRing, TrendingUp, Sparkles, ChevronRight, LayoutDashboard, History, Filter, Monitor } from "lucide-react";
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   AreaChart,
   Area
 } from "recharts";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   DialogTrigger,
   DialogDescription,
   DialogFooter
@@ -55,7 +55,7 @@ export default function Dashboard() {
   const { data: people } = trpc.people.list.useQuery();
   const logEventMutation = trpc.events.log.useMutation();
   const sendEmailMutation = trpc.people.sendAlertEmail.useMutation();
-  
+
   const [selectedPatientId, setSelectedPatientId] = useState<string>("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [detectionStatus, setDetectionStatus] = useState<DetectionStatus>("idle");
@@ -78,7 +78,7 @@ export default function Dashboard() {
     firstSeen: Date;
     lastSeen: Date;
   }[]>([]);
-  
+
   // Real-time Firebase data states
   const [currentVitals, setCurrentVitals] = useState<VitalsData | null>(null);
   const [currentRoomData, setCurrentRoomData] = useState<RoomData | null>(null);
@@ -86,13 +86,13 @@ export default function Dashboard() {
   const [roomHistory, setRoomHistory] = useState<RoomData[]>([]);
 
   const aiInsights = trpc.ai.getInsights.useQuery(
-    { 
-      patientId: selectedPatientId, 
-      vitalsHistory: vitalsHistory.slice(-20) 
+    {
+      patientId: selectedPatientId,
+      vitalsHistory: vitalsHistory.slice(-20)
     },
-    { 
+    {
       enabled: !!selectedPatientId && vitalsHistory.length >= 5,
-      refetchInterval: 15000 
+      refetchInterval: 15000
     }
   );
 
@@ -125,14 +125,13 @@ export default function Dashboard() {
 
   const sendEmailAlert = async (subject: string, message: string) => {
     if (!selectedPatient || !people) return;
-    
+
     const doctor = people.find(p => p.id === selectedPatient.assignedDoctorId);
     const nurse = people.find(p => p.id === selectedPatient.assignedNurseId);
-    
+
     const recipients = [doctor?.email, nurse?.email].filter(Boolean) as string[];
-    
+
     if (recipients.length === 0) {
-      console.warn("[Dashboard] No assigned staff with email found for patient:", selectedPatient.name);
       return;
     }
 
@@ -160,7 +159,7 @@ Please check the monitoring dashboard immediately.
 
   const checkThresholds = (vitals: VitalsData | null, room: RoomData | null) => {
     if (!vitals && !room) return;
-    
+
     const now = Date.now();
     const alertThrottle = 10000; // 10 seconds between same alert type
 
@@ -202,7 +201,7 @@ Please check the monitoring dashboard immediately.
       }
     }
   };
-  
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -238,28 +237,25 @@ Please check the monitoring dashboard immediately.
   // Prepare the dataset of known faces and their descriptors
   const { knownPeople, enrolledDescriptors } = useMemo(() => {
     if (!people) {
-      console.log("[Dashboard] People query returned no data yet");
       return { knownPeople: [], enrolledDescriptors: [] };
     }
-    
+
     const kp: typeof people = [];
     const ed: Float32Array[] = [];
-    
-    console.log(`[Dashboard] Processing ${people.length} total people for recognition...`);
 
     people.forEach(p => {
       const desc = p.enrolledFaceDescriptor;
       if (!desc) return;
 
       let descriptor: Float32Array | null = null;
-      
+
       try {
         // Case 1: TRPC/JSON serialized Buffer: { type: 'Buffer', data: [...] }
         if (typeof desc === 'object' && desc !== null && 'data' in desc && Array.isArray((desc as any).data)) {
           const uint8 = new Uint8Array((desc as any).data);
           const ab = uint8.buffer.slice(uint8.byteOffset, uint8.byteOffset + uint8.byteLength);
           descriptor = new Float32Array(ab);
-        } 
+        }
         // Case 2: Already a TypedArray or Buffer instance
         else if (desc instanceof Uint8Array || (typeof Buffer !== 'undefined' && Buffer.isBuffer(desc))) {
           const uint8 = new Uint8Array(desc as any);
@@ -288,22 +284,22 @@ Please check the monitoring dashboard immediately.
           }
         }
       } catch (e) {
-        console.error(`[Dashboard] Failed to parse descriptor for ${p.name}:`, e);
       }
-      
+
       if (descriptor && descriptor.length === 128) {
         kp.push(p);
         ed.push(descriptor);
       } else if (descriptor) {
-        console.warn(`[Dashboard] Person ${p.name} has invalid descriptor length: ${descriptor.length}`);
       }
     });
-    
-    console.log(`[Dashboard] Successfully loaded ${kp.length} identities into neural engine`);
+
     return { knownPeople: kp, enrolledDescriptors: ed };
   }, [people]);
 
   const selectedPatient = people?.find((p) => String(p.id) === selectedPatientId);
+  const patientDataId = selectedPatient?.firebaseId
+    ?? (selectedPatient?.roomId ? selectedPatient.roomId.replace(/^room_/, "patient_") : undefined)
+    ?? selectedPatient?.id;
 
   // Keep the refs in sync with the latest state/derived values so the
   // detection interval always reads up-to-date data.
@@ -317,16 +313,35 @@ Please check the monitoring dashboard immediately.
   }, [knownPeople, enrolledDescriptors]);
 
   // Logs history
-  const [logRange, setLogRange] = useState<{start: Date | null, end: Date | null}>({start: null, end: null});
+  const [logRange, setLogRange] = useState<{ start: Date | null, end: Date | null }>({ start: null, end: null });
   const [vitalsLogs, setVitalsLogs] = useState<VitalsData[]>([]);
   const [roomLogs, setRoomLogs] = useState<RoomData[]>([]);
 
   useEffect(() => {
-    if (!selectedPatient || activeTab !== "logs") return;
+    setVitalsHistory([]);
+    setRoomHistory([]);
+    setVitalsLogs([]);
+    setRoomLogs([]);
+    setLogRange({ start: null, end: null });
+  }, [selectedPatient?.id]);
+
+  useEffect(() => {
+    if (!selectedPatient || activeTab !== "logs") {
+      setVitalsLogs([]);
+      setRoomLogs([]);
+      return;
+    }
+
+    if (!patientDataId) {
+      setVitalsLogs([]);
+      return;
+    }
+
+    const vitalsPath = `patients/${patientDataId}`;
 
     // Use Firebase queries to limit data and prevent memory leaks
     let vitalsQuery = query(
-      ref(database, `patients/${selectedPatient.firebaseId}`),
+      ref(database, vitalsPath),
       orderByChild('timestamp')
     );
 
@@ -337,20 +352,26 @@ Please check the monitoring dashboard immediately.
       vitalsQuery = query(vitalsQuery, endAt(logRange.end.getTime()));
     }
 
-    // Always limit to the last 500 points to ensure performance
-    const limitedVitalsQuery = query(vitalsQuery, limitToLast(500));
+    const vitalsSourceQuery = logRange.start || logRange.end
+      ? vitalsQuery
+      : query(vitalsQuery, limitToLast(500));
 
-    const unsubscribeVitals = onValue(limitedVitalsQuery, (snapshot) => {
+    const unsubscribeVitals = onValue(vitalsSourceQuery, (snapshot) => {
       if (snapshot.exists()) {
-        const data = Object.values(snapshot.val()) as VitalsData[];
+        const val = snapshot.val();
+        const data = Object.values(val) as VitalsData[];
         setVitalsLogs(data.sort((a, b) => a.timestamp - b.timestamp));
       } else {
         setVitalsLogs([]);
       }
+    }, (error) => {
+      toast.error("Failed to load vitals history: " + error.message);
     });
 
+    const roomPath = `rooms/${selectedPatient.roomId}`;
+
     let roomQuery = query(
-      ref(database, `rooms/${selectedPatient.roomId}`),
+      ref(database, roomPath),
       orderByChild('timestamp')
     );
 
@@ -361,31 +382,47 @@ Please check the monitoring dashboard immediately.
       roomQuery = query(roomQuery, endAt(logRange.end.getTime()));
     }
 
-    const limitedRoomQuery = query(roomQuery, limitToLast(500));
+    const roomSourceQuery = logRange.start || logRange.end
+      ? roomQuery
+      : query(roomQuery, limitToLast(500));
 
-    const unsubscribeRoom = onValue(limitedRoomQuery, (snapshot) => {
+    const unsubscribeRoom = onValue(roomSourceQuery, (snapshot) => {
       if (snapshot.exists()) {
-        const data = Object.values(snapshot.val()) as RoomData[];
+        const val = snapshot.val();
+        const data = Object.values(val) as RoomData[];
         setRoomLogs(data.sort((a, b) => a.timestamp - b.timestamp));
       } else {
         setRoomLogs([]);
       }
+    }, (error) => {
     });
 
     return () => {
       unsubscribeVitals();
       unsubscribeRoom();
     };
-  }, [selectedPatient?.id, activeTab, logRange]);
+  }, [selectedPatient?.id, patientDataId, activeTab, logRange]);
 
   // Firebase Realtime Subscriptions
   useEffect(() => {
-    if (!selectedPatient || !selectedPatient.firebaseId) {
+    if (!selectedPatient || !patientDataId) {
       setCurrentVitals(null);
+      setVitalsHistory([]);
       return;
     }
 
-    const vitalsRef = ref(database, `patients/${selectedPatient.firebaseId}`);
+    const vitalsRef = ref(database, `patients/${patientDataId}`);
+    
+    // 1. Initial fetch for last 20 readings to populate the chart immediately
+    const initialQuery = query(vitalsRef, orderByChild("timestamp"), limitToLast(20));
+    get(initialQuery).then((snapshot) => {
+      if (snapshot.exists()) {
+        const data = Object.values(snapshot.val()) as VitalsData[];
+        setVitalsHistory(data.sort((a, b) => a.timestamp - b.timestamp));
+      }
+    });
+
+    // 2. Real-time listener for new data
     const unsubscribeVitals = onValue(vitalsRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.val();
@@ -397,6 +434,8 @@ Please check the monitoring dashboard immediately.
           
           // Update history (keep last 20 readings)
           setVitalsHistory(prev => {
+            const exists = prev.some(e => e.timestamp === latest.timestamp);
+            if (exists) return prev;
             const updated = [...prev, latest].sort((a, b) => a.timestamp - b.timestamp);
             return updated.slice(-20);
           });
@@ -409,15 +448,26 @@ Please check the monitoring dashboard immediately.
     });
 
     return () => unsubscribeVitals();
-  }, [selectedPatient?.firebaseId]);
+  }, [selectedPatient?.id, patientDataId]);
 
   useEffect(() => {
     if (!selectedPatient || !selectedPatient.roomId) {
       setCurrentRoomData(null);
+      setRoomHistory([]);
       return;
     }
 
     const roomRef = ref(database, `rooms/${selectedPatient.roomId}`);
+    
+    // Initial fetch for last 20 room readings
+    const initialQuery = query(roomRef, orderByChild("timestamp"), limitToLast(20));
+    get(initialQuery).then((snapshot) => {
+      if (snapshot.exists()) {
+        const data = Object.values(snapshot.val()) as RoomData[];
+        setRoomHistory(data.sort((a, b) => a.timestamp - b.timestamp));
+      }
+    });
+
     const unsubscribeRoom = onValue(roomRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.val();
@@ -429,6 +479,8 @@ Please check the monitoring dashboard immediately.
 
           // Update history (keep last 20 readings)
           setRoomHistory(prev => {
+            const exists = prev.some(e => e.timestamp === latest.timestamp);
+            if (exists) return prev;
             const updated = [...prev, latest].sort((a, b) => a.timestamp - b.timestamp);
             return updated.slice(-20);
           });
@@ -496,7 +548,7 @@ Please check the monitoring dashboard immediately.
         const faces = await detectFaces(videoRef.current);
         const now = Date.now();
         const nowDate = new Date();
-        const recognizedInFrame: {name: string, role: string, isAuthorized: boolean}[] = [];
+        const recognizedInFrame: { name: string, role: string, isAuthorized: boolean }[] = [];
 
         if (faces.length === 0) {
           setDetectionStatus("absent");
@@ -646,7 +698,7 @@ Please check the monitoring dashboard immediately.
               ctx.strokeStyle = color;
               ctx.lineWidth = 3;
               ctx.strokeRect(face.box.x, face.box.y, face.box.width, face.box.height);
-              
+
               ctx.fillStyle = color;
               ctx.font = "bold 16px Inter, sans-serif";
               const label = `${personName}${match ? ` (${(match.confidence * 100).toFixed(0)}%)` : ""}`;
@@ -672,7 +724,7 @@ Please check the monitoring dashboard immediately.
           } else {
             setDetectionStatus("absent");
             setConfidenceScore(0);
-            
+
             // Patient Absence Stabilization
             absenceCounterRef.current++;
             if (absenceCounterRef.current >= STABILITY_THRESHOLD) {
@@ -685,7 +737,7 @@ Please check the monitoring dashboard immediately.
                   roomId: selectedPatient.roomId || "unknown",
                   description: "Patient not detected in camera frame",
                 });
-                
+
                 if (now - (lastEmailTimeRef.current['absence'] || 0) > EMAIL_COOLDOWN) {
                   sendEmailAlert("Patient Missing", `The patient is no longer detected by the room camera. Immediate room check required.`);
                   lastEmailTimeRef.current['absence'] = now;
@@ -707,7 +759,6 @@ Please check the monitoring dashboard immediately.
           Array.from(roomOccupantsRef.current.values()).sort((a, b) => b.lastSeen.getTime() - a.lastSeen.getTime())
         );
       } catch (err) {
-        console.error("Detection error:", err);
       } finally {
         setIsProcessing(false);
       }
@@ -748,14 +799,14 @@ Please check the monitoring dashboard immediately.
                     Define safety boundaries for automated alerting.
                   </DialogDescription>
                 </DialogHeader>
-                
+
                 <div className="space-y-6 py-6">
                   <div className="space-y-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
                     <div className="flex items-center gap-2 mb-2">
                       <HeartPulse className="w-4 h-4 text-rose-500" />
                       <h4 className="text-xs font-bold text-slate-900 uppercase tracking-widest">Vital Signs</h4>
                     </div>
-                    
+
                     <div className="space-y-3">
                       <div className="flex justify-between items-end">
                         <Label className="text-slate-600 font-bold">Heart Rate Range</Label>
@@ -763,8 +814,8 @@ Please check the monitoring dashboard immediately.
                           {thresholds.hrMin} - {thresholds.hrMax} BPM
                         </Badge>
                       </div>
-                      <Slider 
-                        defaultValue={[thresholds.hrMin, thresholds.hrMax]} 
+                      <Slider
+                        defaultValue={[thresholds.hrMin, thresholds.hrMax]}
                         max={180} min={40} step={1}
                         onValueChange={([min, max]) => setThresholds(t => ({ ...t, hrMin: min, hrMax: max }))}
                       />
@@ -777,8 +828,8 @@ Please check the monitoring dashboard immediately.
                           {thresholds.spo2Min}%
                         </Badge>
                       </div>
-                      <Slider 
-                        defaultValue={[thresholds.spo2Min]} 
+                      <Slider
+                        defaultValue={[thresholds.spo2Min]}
                         max={100} min={85} step={1}
                         onValueChange={([val]) => setThresholds(t => ({ ...t, spo2Min: val }))}
                       />
@@ -798,8 +849,8 @@ Please check the monitoring dashboard immediately.
                           {thresholds.tempMin}° - {thresholds.tempMax}°C
                         </Badge>
                       </div>
-                      <Slider 
-                        defaultValue={[thresholds.tempMin, thresholds.tempMax]} 
+                      <Slider
+                        defaultValue={[thresholds.tempMin, thresholds.tempMax]}
                         max={45} min={15} step={0.5}
                         onValueChange={([min, max]) => setThresholds(t => ({ ...t, tempMin: min, tempMax: max }))}
                       />
@@ -808,8 +859,8 @@ Please check the monitoring dashboard immediately.
                 </div>
 
                 <DialogFooter>
-                  <Button 
-                    className="w-full h-12 bg-slate-900 hover:bg-black rounded-xl font-bold" 
+                  <Button
+                    className="w-full h-12 bg-slate-900 hover:bg-black rounded-xl font-bold"
                     onClick={() => toast.success("Thresholds synchronized successfully")}
                   >
                     Save Monitoring Protocol
@@ -823,21 +874,21 @@ Please check the monitoring dashboard immediately.
 
       {/* Tabs Navigation */}
       <div className="flex items-center gap-2 bg-white/60 backdrop-blur-md p-1.5 rounded-2xl border border-slate-200/60 w-fit shadow-sm sticky top-4 z-50">
-        <Button 
+        <Button
           variant={activeTab === "monitoring" ? "default" : "ghost"}
           className={`rounded-xl px-6 h-11 font-bold transition-all ${activeTab === "monitoring" ? 'bg-indigo-600 shadow-lg shadow-indigo-200 hover:bg-indigo-700' : 'text-slate-500 hover:bg-slate-100'}`}
           onClick={() => setActiveTab("monitoring")}
         >
           <Monitor className="w-4 h-4 mr-2" /> Real-time Monitoring
         </Button>
-        <Button 
+        <Button
           variant={activeTab === "camera" ? "default" : "ghost"}
           className={`rounded-xl px-6 h-11 font-bold transition-all ${activeTab === "camera" ? 'bg-indigo-600 shadow-lg shadow-indigo-200 hover:bg-indigo-700' : 'text-slate-500 hover:bg-slate-100'}`}
           onClick={() => setActiveTab("camera")}
         >
           <Camera className="w-4 h-4 mr-2" /> Camera Feed
         </Button>
-        <Button 
+        <Button
           variant={activeTab === "logs" ? "default" : "ghost"}
           className={`rounded-xl px-6 h-11 font-bold transition-all ${activeTab === "logs" ? 'bg-indigo-600 shadow-lg shadow-indigo-200 hover:bg-indigo-700' : 'text-slate-500 hover:bg-slate-100'}`}
           onClick={() => setActiveTab("logs")}
@@ -930,19 +981,19 @@ Please check the monitoring dashboard immediately.
                           <AreaChart data={vitalsHistory}>
                             <defs>
                               <linearGradient id="colorHr" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
-                                <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1} />
+                                <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                               </linearGradient>
                               <linearGradient id="colorSpo2" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
-                                <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />
+                                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                               </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                             <XAxis dataKey="timestamp" hide />
                             <YAxis yAxisId="left" domain={[0, 180]} stroke="#6366f1" fontSize={10} axisLine={false} tickLine={false} />
                             <YAxis yAxisId="right" orientation="right" domain={[0, 100]} stroke="#10b981" fontSize={10} axisLine={false} tickLine={false} />
-                            <Tooltip 
+                            <Tooltip
                               contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                               labelFormatter={(t) => new Date(t).toLocaleTimeString()}
                             />
@@ -961,7 +1012,7 @@ Please check the monitoring dashboard immediately.
                             <XAxis dataKey="timestamp" hide />
                             <YAxis yAxisId="left" domain={[0, 60]} stroke="#f43f5e" fontSize={10} axisLine={false} tickLine={false} />
                             <YAxis yAxisId="right" orientation="right" domain={[0, 100]} stroke="#3b82f6" fontSize={10} axisLine={false} tickLine={false} />
-                            <Tooltip 
+                            <Tooltip
                               contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                               labelFormatter={(t) => new Date(t).toLocaleTimeString()}
                             />
@@ -976,17 +1027,15 @@ Please check the monitoring dashboard immediately.
                       {selectedPatient && vitalsHistory.length >= 5 ? (
                         <div className="space-y-4">
                           {/* Current status banner */}
-                          <div className={`p-5 rounded-2xl border-2 transition-all ${
-                            aiInsights?.data?.status === 'critical' ? 'bg-red-50 border-red-100 shadow-sm shadow-red-100' : 
-                            aiInsights?.data?.status === 'warning' ? 'bg-amber-50 border-amber-100 shadow-sm shadow-amber-100' : 
-                            'bg-indigo-50 border-indigo-100 shadow-sm shadow-indigo-100'
-                          }`}>
+                          <div className={`p-5 rounded-2xl border-2 transition-all ${aiInsights?.data?.status === 'critical' ? 'bg-red-50 border-red-100 shadow-sm shadow-red-100' :
+                            aiInsights?.data?.status === 'warning' ? 'bg-amber-50 border-amber-100 shadow-sm shadow-amber-100' :
+                              'bg-indigo-50 border-indigo-100 shadow-sm shadow-indigo-100'
+                            }`}>
                             <div className="flex items-center gap-3 mb-2">
-                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-md ${
-                                aiInsights?.data?.status === 'critical' ? 'bg-red-500 shadow-red-200' : 
-                                aiInsights?.data?.status === 'warning' ? 'bg-amber-500 shadow-amber-200' : 
-                                'bg-indigo-500 shadow-indigo-200'
-                              }`}>
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-md ${aiInsights?.data?.status === 'critical' ? 'bg-red-500 shadow-red-200' :
+                                aiInsights?.data?.status === 'warning' ? 'bg-amber-500 shadow-amber-200' :
+                                  'bg-indigo-500 shadow-indigo-200'
+                                }`}>
                                 <Sparkles className="w-5 h-5" />
                               </div>
                               <div>
@@ -1007,24 +1056,21 @@ Please check the monitoring dashboard immediately.
                                 {insightHistory.map((entry, i) => (
                                   <div
                                     key={i}
-                                    className={`flex gap-3 p-3.5 rounded-xl border text-sm transition-all ${
-                                      entry.status === 'critical' ? 'bg-red-50 border-red-100' :
-                                      entry.status === 'warning'  ? 'bg-amber-50 border-amber-100' :
-                                      'bg-slate-50 border-slate-100'
-                                    }`}
+                                    className={`flex gap-3 p-3.5 rounded-xl border text-sm transition-all ${entry.status === 'critical' ? 'bg-red-50 border-red-100' :
+                                      entry.status === 'warning' ? 'bg-amber-50 border-amber-100' :
+                                        'bg-slate-50 border-slate-100'
+                                      }`}
                                   >
-                                    <div className={`w-2 shrink-0 rounded-full mt-1 self-stretch ${
-                                      entry.status === 'critical' ? 'bg-red-400' :
-                                      entry.status === 'warning'  ? 'bg-amber-400' :
-                                      'bg-indigo-400'
-                                    }`} />
+                                    <div className={`w-2 shrink-0 rounded-full mt-1 self-stretch ${entry.status === 'critical' ? 'bg-red-400' :
+                                      entry.status === 'warning' ? 'bg-amber-400' :
+                                        'bg-indigo-400'
+                                      }`} />
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center justify-between gap-2 mb-0.5">
-                                        <span className={`text-[10px] font-black uppercase tracking-widest ${
-                                          entry.status === 'critical' ? 'text-red-600' :
-                                          entry.status === 'warning'  ? 'text-amber-600' :
-                                          'text-indigo-600'
-                                        }`}>{entry.status}</span>
+                                        <span className={`text-[10px] font-black uppercase tracking-widest ${entry.status === 'critical' ? 'text-red-600' :
+                                          entry.status === 'warning' ? 'text-amber-600' :
+                                            'text-indigo-600'
+                                          }`}>{entry.status}</span>
                                         <span className="text-[10px] font-medium text-slate-400 shrink-0">
                                           {entry.timestamp.toLocaleTimeString()}
                                         </span>
@@ -1054,28 +1100,26 @@ Please check the monitoring dashboard immediately.
 
             {/* Right Column: Presence & Room Staff */}
             <div className="lg:col-span-4 space-y-6">
-              <Card className={`border-none shadow-lg transition-all duration-500 rounded-3xl ${
-                detectionStatus === 'present' ? 'bg-emerald-50 ring-1 ring-emerald-200' : 
+              <Card className={`border-none shadow-lg transition-all duration-500 rounded-3xl ${detectionStatus === 'present' ? 'bg-emerald-50 ring-1 ring-emerald-200' :
                 detectionStatus === 'absent' && isStreaming ? 'bg-amber-50 ring-1 ring-amber-200' : 'bg-white ring-1 ring-slate-100'
-              }`}>
+                }`}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-xs font-bold uppercase tracking-widest text-slate-500">Patient Status</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center gap-4 py-2">
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${
-                      detectionStatus === 'present' ? 'bg-emerald-500 text-white shadow-xl shadow-emerald-200' :
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${detectionStatus === 'present' ? 'bg-emerald-500 text-white shadow-xl shadow-emerald-200' :
                       detectionStatus === 'absent' && isStreaming ? 'bg-amber-500 text-white shadow-xl shadow-amber-200' :
-                      'bg-slate-100 text-slate-400'
-                    }`}>
+                        'bg-slate-100 text-slate-400'
+                      }`}>
                       {detectionStatus === 'present' ? <CheckCircle className="w-7 h-7" /> :
-                       detectionStatus === 'absent' && isStreaming ? <Clock className="w-7 h-7" /> :
-                       <Camera className="w-7 h-7" />}
+                        detectionStatus === 'absent' && isStreaming ? <Clock className="w-7 h-7" /> :
+                          <Camera className="w-7 h-7" />}
                     </div>
                     <div>
                       <h4 className="text-2xl font-black text-slate-900 leading-tight">
                         {detectionStatus === 'present' ? "Present" :
-                         detectionStatus === 'absent' && isStreaming ? "Absent" : "Standby"}
+                          detectionStatus === 'absent' && isStreaming ? "Absent" : "Standby"}
                       </h4>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                         {isStreaming ? `Monitoring Room ${selectedPatient?.roomId || '...'}` : "Camera Standby"}
@@ -1096,16 +1140,14 @@ Please check the monitoring dashboard immediately.
                   <div className="space-y-3">
                     {currentlyInRoom.length > 0 ? (
                       currentlyInRoom.map((p, i) => (
-                        <div key={i} className={`flex items-center gap-3 p-3.5 rounded-2xl border transition-all animate-in slide-in-from-right-2 duration-300 ${
-                          p.isAuthorized ? 'bg-slate-50/50 border-slate-100' : 'bg-rose-50 border-rose-100'
-                        }`} style={{animationDelay: `${i * 100}ms`}}>
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-sm ${
-                            !p.isAuthorized ? 'bg-rose-500' :
-                            p.role === 'doctor' ? 'bg-indigo-500' : 
-                            p.role === 'nurse' ? 'bg-emerald-500' : 
-                            p.role === 'patient' ? 'bg-slate-900' :
-                            'bg-slate-400'
-                          }`}>
+                        <div key={i} className={`flex items-center gap-3 p-3.5 rounded-2xl border transition-all animate-in slide-in-from-right-2 duration-300 ${p.isAuthorized ? 'bg-slate-50/50 border-slate-100' : 'bg-rose-50 border-rose-100'
+                          }`} style={{ animationDelay: `${i * 100}ms` }}>
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-sm ${!p.isAuthorized ? 'bg-rose-500' :
+                            p.role === 'doctor' ? 'bg-indigo-500' :
+                              p.role === 'nurse' ? 'bg-emerald-500' :
+                                p.role === 'patient' ? 'bg-slate-900' :
+                                  'bg-slate-400'
+                            }`}>
                             {!p.isAuthorized ? <AlertCircle className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
                           </div>
                           <div className="flex-1">
@@ -1147,7 +1189,7 @@ Please check the monitoring dashboard immediately.
               className="w-full h-full object-cover"
             />
             <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-            
+
             {!isStreaming && (
               <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80 backdrop-blur-md">
                 <div className="text-center">
@@ -1175,7 +1217,7 @@ Please check the monitoring dashboard immediately.
               </div>
             )}
           </div>
-          
+
           <div className="p-8 bg-white border-t border-slate-100">
             <div className="flex flex-col lg:flex-row gap-6 items-end">
               <div className="flex-1 w-full space-y-3">
@@ -1230,124 +1272,139 @@ Please check the monitoring dashboard immediately.
       {/* Historical Logs Tab */}
       {activeTab === "logs" && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <Card className="border-none shadow-sm bg-white p-6 rounded-3xl ring-1 ring-slate-100">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div>
-                <h3 className="text-2xl font-black text-slate-900">Historical Insights</h3>
-                <p className="text-slate-500 font-semibold mt-1">Analyze patient data trends over time.</p>
+          {!selectedPatient && (
+            <Card className="border-none shadow-sm bg-white p-8 rounded-3xl ring-1 ring-slate-100">
+              <div className="text-center">
+                <History className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+                <h3 className="text-lg font-black text-slate-900">Select a patient to view history</h3>
+                <p className="text-sm text-slate-500 font-medium mt-1">
+                  Choose a patient from the camera feed to load historical vitals and room logs.
+                </p>
               </div>
-              <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-100">
-                <Filter className="w-4 h-4 text-slate-400 ml-2" />
-                <DateRangeFilter onDateRangeChange={(start, end) => setLogRange({ start, end })} />
+            </Card>
+          )}
+          {selectedPatient && (
+            <Card className="border-none shadow-sm bg-white p-6 rounded-3xl ring-1 ring-slate-100">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div>
+                  <h3 className="text-2xl font-black text-slate-900">Historical Insights</h3>
+                  <p className="text-slate-500 font-semibold mt-1">Analyze patient data trends over time.</p>
+                </div>
+                <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-100">
+                  <Filter className="w-4 h-4 text-slate-400 ml-2" />
+                  <DateRangeFilter onDateRangeChange={(start, end) => setLogRange({ start, end })} />
+                </div>
               </div>
+            </Card>
+          )}
+
+          {selectedPatient && (
+            <div className="grid grid-cols-1 gap-6">
+              <Card className="border-none shadow-xl bg-white overflow-hidden rounded-[2rem] ring-1 ring-slate-100">
+                <CardHeader className="p-8 pb-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600">
+                        <HeartPulse className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-xl font-black text-slate-900">Vitals History</CardTitle>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Heart Rate vs Oxygen Saturation</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-indigo-500" />
+                        <span className="text-xs font-bold text-slate-600">HR (BPM)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                        <span className="text-xs font-bold text-slate-600">SpO2 (%)</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-8 pt-4">
+                  <div className="h-[450px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={vitalsLogs}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis
+                          dataKey="timestamp"
+                          stroke="#94a3b8"
+                          fontSize={10}
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(t) => new Date(t).toLocaleDateString() + ' ' + new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          minTickGap={50}
+                        />
+                        <YAxis yAxisId="left" stroke="#6366f1" fontSize={10} axisLine={false} tickLine={false} domain={[40, 180]} />
+                        <YAxis yAxisId="right" orientation="right" stroke="#10b981" fontSize={10} axisLine={false} tickLine={false} domain={[80, 100]} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#fff', borderRadius: '20px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)' }}
+                          labelFormatter={(t) => new Date(t).toLocaleString()}
+                        />
+                        <Line yAxisId="left" type="monotone" dataKey="heartRate" stroke="#6366f1" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} name="Heart Rate" animationDuration={1500} />
+                        <Line yAxisId="right" type="monotone" dataKey="spO2" stroke="#10b981" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} name="SpO2" animationDuration={1500} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-none shadow-xl bg-white overflow-hidden rounded-[2rem] ring-1 ring-slate-100">
+                <CardHeader className="p-8 pb-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-2xl bg-amber-50 text-amber-600">
+                        <Thermometer className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-xl font-black text-slate-900">Environment History</CardTitle>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Temperature vs Humidity</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-amber-500" />
+                        <span className="text-xs font-bold text-slate-600">Temp (°C)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-blue-500" />
+                        <span className="text-xs font-bold text-slate-600">Humidity (%)</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-8 pt-4">
+                  <div className="h-[450px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={roomLogs}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis
+                          dataKey="timestamp"
+                          stroke="#94a3b8"
+                          fontSize={10}
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(t) => new Date(t).toLocaleDateString() + ' ' + new Date(t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          minTickGap={50}
+                        />
+                        <YAxis yAxisId="left" stroke="#f59e0b" fontSize={10} axisLine={false} tickLine={false} domain={[15, 45]} />
+                        <YAxis yAxisId="right" orientation="right" stroke="#0ea5e9" fontSize={10} axisLine={false} tickLine={false} domain={[0, 100]} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#fff', borderRadius: '20px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)' }}
+                          labelFormatter={(t) => new Date(t).toLocaleString()}
+                        />
+                        <Line yAxisId="left" type="monotone" dataKey="temperature" stroke="#f59e0b" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} name="Temperature" animationDuration={1500} />
+                        <Line yAxisId="right" type="monotone" dataKey="humidity" stroke="#0ea5e9" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} name="Humidity" animationDuration={1500} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-          </Card>
-
-          <div className="grid grid-cols-1 gap-6">
-            <Card className="border-none shadow-xl bg-white overflow-hidden rounded-[2rem] ring-1 ring-slate-100">
-              <CardHeader className="p-8 pb-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600">
-                      <HeartPulse className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-xl font-black text-slate-900">Vitals History</CardTitle>
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Heart Rate vs Oxygen Saturation</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-indigo-500" />
-                      <span className="text-xs font-bold text-slate-600">HR (BPM)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-emerald-500" />
-                      <span className="text-xs font-bold text-slate-600">SpO2 (%)</span>
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-8 pt-4">
-                <div className="h-[450px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={vitalsLogs}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis 
-                        dataKey="timestamp" 
-                        stroke="#94a3b8" 
-                        fontSize={10} 
-                        axisLine={false} 
-                        tickLine={false}
-                        tickFormatter={(t) => new Date(t).toLocaleDateString() + ' ' + new Date(t).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                        minTickGap={50}
-                      />
-                      <YAxis yAxisId="left" stroke="#6366f1" fontSize={10} axisLine={false} tickLine={false} domain={[40, 180]} />
-                      <YAxis yAxisId="right" orientation="right" stroke="#10b981" fontSize={10} axisLine={false} tickLine={false} domain={[80, 100]} />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#fff', borderRadius: '20px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)' }}
-                        labelFormatter={(t) => new Date(t).toLocaleString()}
-                      />
-                      <Line yAxisId="left" type="monotone" dataKey="heartRate" stroke="#6366f1" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} name="Heart Rate" animationDuration={1500} />
-                      <Line yAxisId="right" type="monotone" dataKey="spO2" stroke="#10b981" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} name="SpO2" animationDuration={1500} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-none shadow-xl bg-white overflow-hidden rounded-[2rem] ring-1 ring-slate-100">
-              <CardHeader className="p-8 pb-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-2xl bg-amber-50 text-amber-600">
-                      <Thermometer className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-xl font-black text-slate-900">Environment History</CardTitle>
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Temperature vs Humidity</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-amber-500" />
-                      <span className="text-xs font-bold text-slate-600">Temp (°C)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-blue-500" />
-                      <span className="text-xs font-bold text-slate-600">Humidity (%)</span>
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-8 pt-4">
-                <div className="h-[450px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={roomLogs}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis 
-                        dataKey="timestamp" 
-                        stroke="#94a3b8" 
-                        fontSize={10} 
-                        axisLine={false} 
-                        tickLine={false}
-                        tickFormatter={(t) => new Date(t).toLocaleDateString() + ' ' + new Date(t).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                        minTickGap={50}
-                      />
-                      <YAxis yAxisId="left" stroke="#f59e0b" fontSize={10} axisLine={false} tickLine={false} domain={[15, 45]} />
-                      <YAxis yAxisId="right" orientation="right" stroke="#0ea5e9" fontSize={10} axisLine={false} tickLine={false} domain={[0, 100]} />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#fff', borderRadius: '20px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)' }}
-                        labelFormatter={(t) => new Date(t).toLocaleString()}
-                      />
-                      <Line yAxisId="left" type="monotone" dataKey="temperature" stroke="#f59e0b" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} name="Temperature" animationDuration={1500} />
-                      <Line yAxisId="right" type="monotone" dataKey="humidity" stroke="#0ea5e9" strokeWidth={4} dot={{ r: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} name="Humidity" animationDuration={1500} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          )}
         </div>
       )}
     </div>
