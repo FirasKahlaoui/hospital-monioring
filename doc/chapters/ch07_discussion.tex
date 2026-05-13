@@ -14,17 +14,18 @@ This chapter interprets the validation evidence from Chapter~6, identifies limit
 \subsection{Embedded Subsystem}
 
 The sensor measurements are consistent with the manufacturer-specified accuracy of the
-DHT22 ($\pm$0.5\,°C, $\pm$2--5\,\% RH) and within the expected operational range of
-the MAX30102 for resting-state adult subjects.
+DHT22\cite{dht22_datasheet} ($\pm$0.5\,°C, $\pm$2--5\,\% RH) and within the expected operational range of
+the MAX30102\cite{max30102_datasheet} for resting-state adult subjects.
 The BPM standard deviation of 2.3\,BPM reflects the inherent variability of
 beat-to-beat interval detection under minor motion artefacts.
 The SpO\textsubscript{2} accuracy of $\pm$1\,\% is within the $\pm$2\,\% tolerance
 generally accepted.
 
 \subsection{Backend and AI Subsystems}
-The backend procedures are structurally consistent with the tRPC schema and are
-guarded by session-based authentication. Quantitative latency and accuracy metrics
-for AI inference remain to be measured in the deployment environment. The AI
+The backend procedures are structurally consistent with the tRPC\cite{trpc} schema and are
+successfully validated via the server-side caller. Procedures for person management,
+event logging, and AI inference operate as expected, with strict TypeScript type
+safety across the boundary. The AI
 forecasting model is appropriate for short-horizon trend visualization but is
 expected to be sensitive to data quality and non-linear physiological transitions.
 
@@ -44,11 +45,12 @@ vitals across different device form factors with no loss of data fidelity.
 	\item[No local offline buffer.]
 	      Records generated during network outages are discarded.
 
-	\item[Plaintext NVS storage.]
-	      Firebase credentials (API key, email, password) are stored in NVS without
-	      encryption.
-	      The ESP32 NVS partition supports native encryption via an NVS key partition;
-	      this should be enabled before any production deployment.
+	\item \textbf{Credential Protection.}
+	      Firebase\cite{firebase_firestore,firebase_rtdb} credentials (API key, email, password) are stored in NVS without
+	      encryption in the current prototype.
+	      The ESP32\cite{esp32_datasheet} NVS partition supports native encryption via an NVS key partition;
+	      this was not implemented for the MVP but is a high-priority security
+	      improvement.
 
 	\item[Implicit shared-memory atomicity.]
 	      The sensor globals are 32-bit floats written on Core~1 and read on Core~0
@@ -65,7 +67,7 @@ vitals across different device form factors with no loss of data fidelity.
 \begin{description}
 	\item[No rate limiting.] The current tRPC implementation does not enforce rate-limiting, which could make the system vulnerable to denial-of-service attacks if exposed to the public internet.
 	\item[SMTP delivery latency.] Email alerts are dependent on external SMTP relay availability, which may introduce latencies of 2--5 seconds during network congestion.
-	\item[Single-region deployment.] The backend and Firebase services are currently deployed in a single geographic region, increasing latency for cross-regional users and lacking multi-region failover.
+	\item[Single-region deployment.] The backend and Firebase\cite{firebase_firestore,firebase_rtdb} services are currently deployed in a single geographic region, increasing latency for cross-regional users and lacking multi-region failover.
 \end{description}
 
 \subsection{Web Dashboard Subsystem}

@@ -16,7 +16,7 @@ Wi-Fi background scans.
 
 Implementation choices in this chapter are traced directly to the architectural decomposition in Chapter~\ref{ch:architecture}, ensuring that each subsystem is implemented against the constraints and interfaces established in the design phase.
 
-The \textbf{Backend Subsystem} is implemented as a Node.js service that acts as a secure proxy between the clinical dashboard and the Firebase infrastructure. It consumes data from Firestore for administrative operations and stores detection/alert logs. The server is initialized via a tRPC router which binds the service logic to the network layer, ensuring that every API call is strictly validated against the project's TypeScript interfaces. Authentication uses Firebase ID tokens at login and persists sessions via signed cookies.
+The \textbf{Backend Subsystem} is implemented as a Node.js service that acts as a secure proxy between the clinical dashboard and the Firebase\cite{firebase_rtdb,firebase_firestore} infrastructure. It consumes data from Firestore for administrative operations and stores detection/alert logs. The server is initialized via a tRPC\cite{trpc} router which binds the service logic to the network layer, ensuring that every API call is strictly validated against the project's TypeScript interfaces. Authentication uses Firebase ID tokens at login and persists sessions via signed cookies.
 
 \begin{figure}[H]
     \centering
@@ -25,7 +25,7 @@ The \textbf{Backend Subsystem} is implemented as a Node.js service that acts as 
     \label{fig:backend_overview}
 \end{figure}
 
-The \textbf{Web Dashboard} is a high-fidelity React application that serves as the central command center for hospital staff. It implements a reactive state model where UI components automatically re-render in response to Firebase Realtime Database events. This tight coupling between the cloud database and the frontend components allows for a "zero-refresh" monitoring experience, which is critical for observing acute physiological changes. Threshold-based clinical alerts are computed on the client and trigger emails through a backend SMTP procedure.
+The \textbf{Web Dashboard} is a high-fidelity React\cite{react} application that serves as the central command center for hospital staff. It implements a reactive state model where UI components automatically re-render in response to Firebase Realtime Database events. This tight coupling between the cloud database and the frontend components allows for a "zero-refresh" monitoring experience, which is critical for observing acute physiological changes. Threshold-based clinical alerts are computed on the client and trigger emails through a backend SMTP procedure.
 
 % ============================================================
 \section{Hardware Implementation}
@@ -35,9 +35,9 @@ The hardware assembly consists of three components mounted on a common 3.3\,V po
 rail:
 
 \begin{itemize}
-	\item \textbf{ESP32 development board}.
-	\item \textbf{DHT22} connected to GPIO~4.
-	\item \textbf{MAX30102 breakout board} connected to the ESP32's default
+	\item \textbf{ESP32 development board}\cite{esp32_datasheet}.
+	\item \textbf{DHT22}\cite{dht22_datasheet} connected to GPIO~4.
+	\item \textbf{MAX30102 breakout board}\cite{max30102_datasheet} connected to the ESP32's default
 	      I\textsuperscript{2}C bus (SDA: GPIO~21, SCL: GPIO~22), powered at 3.3\,V.
 \end{itemize}
 
@@ -146,7 +146,7 @@ Firebase Storage is unavailable. This keeps the feature functional without a
 paid storage plan but increases payload sizes in the database and client.
 
 \subsection{Web Dashboard Implementation}
-The dashboard's core is the \textbf{Real-time Monitoring Component}, which uses a custom hook to manage the Firebase RTDB listener lifecycle. Vitals are visualized using \textbf{AreaCharts} from Recharts, optimized for high-frequency updates without UI stutter. A secondary \textbf{AI Insights Panel} renders synthesized clinical conclusions by subscribing to the tRPC AI results. The personnel tracking system is implemented via a browser-based \texttt{face-api.js} pipeline, executing detection every 600\,ms and applying a 5-frame stability threshold before logging alerts.
+The dashboard's core is the \textbf{Real-time Monitoring Component}, which uses a custom hook to manage the Firebase RTDB listener lifecycle. Vitals are visualized using \textbf{AreaCharts} from Recharts\cite{recharts}, optimized for high-frequency updates without UI stutter. A secondary \textbf{AI Insights Panel} renders synthesized clinical conclusions by subscribing to the tRPC AI results. The personnel tracking system is implemented via a browser-based \texttt{face-api.js}\cite{faceapi} pipeline, executing detection every 600\,ms and applying a 5-frame stability threshold before logging alerts.
 
 \begin{figure}[H]
     \centering

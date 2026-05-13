@@ -9,7 +9,7 @@ This project proposes a complete, end-to-end hospital monitoring solution compos
 of four integrated subsystems:
 
 \begin{itemize}
-	\item \textbf{Embedded acquisition node (ESP32):} real-time sensor acquisition and authenticated cloud transmission.
+	\item \textbf{Embedded acquisition node (ESP32):} real-time sensor acquisition and authenticated cloud transmission.\cite{esp32_datasheet,dht22_datasheet,max30102_datasheet}
 	\item \textbf{Backend server:} database management, alert rule evaluation, and
 	      user authentication.
 	\item \textbf{Web dashboard:} real-time data visualisation, historical charts,
@@ -63,26 +63,27 @@ The concrete contributions of the group are as follows:
 	      DHT22 and MAX30102 sensor drivers, PPG-based heart rate and SpO\textsubscript{2}
 	      computation, delta-threshold upload filter, LittleFS-backed configuration portal,
 	      NVS credential persistence, and automatic Wi-Fi recovery. Hardware assembly
-	      including resolution of the MAX30102 pull-up resistor incompatibility.
+	      including resolution of the MAX30102 pull-up resistor incompatibility.\cite{esp32_datasheet,dht22_datasheet,max30102_datasheet}
 
 	\item[Backend server.]
 	      Design and deployment of a Node.js/tRPC service layer with Firebase Admin SDK
 	      integration, Role-Based Access Control (RBAC), Zod schema validation, event
 	      and alert log generation for presence monitoring, a statistical AI insights
 	      endpoint for vitals, and an SMTP email procedure triggered by dashboard alerts.
+\cite{trpc,firebase_auth,firebase_firestore,firebase_rtdb}
 
 	\item[Web dashboard.]
 		      Implementation of a React/Vite single-page application with real-time Firebase
 		      RTDB subscriptions, Recharts-based vital sign visualisation, an AI Insights
 		      panel, and an on-device face-api.js pipeline running in the browser for
-		      authorized personnel tracking using an external USB camera.
+		      authorized personnel tracking using an external USB camera.\cite{react,recharts,faceapi,firebase_rtdb}
 
 	\item[AI insights layer.]
 		      Server-side implementation of a statistical anomaly detection engine (Z-score
 		      over a short sliding window of recent points, with a minimum of 5 samples)
 		      and a 5-step vital sign forecasting model (Ordinary Least Squares linear
 		      regression), exposed as tRPC procedures and integrated into the dashboard's
-		      clinical status display.
+		      clinical status display.\cite{trpc}
 \end{description}
 
 \section{Organization}

@@ -10,8 +10,8 @@
 % ============================================================
 
 This project delivered a complete, end-to-end hospital room and patient monitoring
-system, structured around four tightly integrated subsystems: an ESP32 embedded
-acquisition node, a Node.js/tRPC backend server, a React web dashboard, and a
+system, structured around four tightly integrated subsystems: an ESP32\cite{esp32_datasheet} embedded
+acquisition node, a Node.js/tRPC\cite{trpc} backend server, a React\cite{react} web dashboard, and a
 cloud-hosted AI prediction layer.
 
 The embedded firmware demonstrates that a low-cost, dual-core microcontroller is
@@ -20,7 +20,7 @@ acquisition when the architecture explicitly separates sensor timing from networ
 latency using FreeRTOS task pinning. The backend shows that a serverless, type-safe
 API can enforce clinical security requirements (RBAC, JWT verification, schema
 validation) with negligible added latency. The dashboard demonstrates that
-browser-native technologies — WebSockets and the Recharts rendering
+browser-native technologies — WebSockets and the Recharts\cite{recharts} rendering
 engine — are sufficient for a responsive clinical monitoring interface with concurrent
 AI inference. The AI layer demonstrates that simple statistical methods (Z-score
 anomaly detection and OLS linear regression) can deliver clinically meaningful
@@ -36,7 +36,7 @@ All conclusions in this report are grounded in the prototype implementation and 
 All four functional objectives defined in Chapter~1 are addressed by the current
 implementation. Continuous acquisition of temperature, humidity, heart rate, and
 SpO\textsubscript{2} is designed for up to 1\,Hz transmission, constrained by sensor
-limits. Data transmission to Firebase RTDB operates on a 1\,s push interval, with
+limits. Data transmission to Firebase\cite{firebase_rtdb} RTDB operates on a 1\,s push interval, with
 end-to-end latency dependent on network RTT. The web dashboard provides real-time
 visualisation, alert management, and historical browsing. The AI layer classifies
 clinical status and provides short-horizon vital sign forecasts based on recent
@@ -98,3 +98,14 @@ The following directions are identified for future development of the complete s
 	      suppress SpO\textsubscript{2} and BPM readings during patient movement,
 	      reducing AI false-positive rates.
 \end{enumerate}
+
+% ============================================================
+\section{Deployment and Access}
+% ============================================================
+
+The web dashboard is deployed on Vercel\cite{vercel} and accessible at:
+\begin{itemize}
+	\item \textbf{URL:} \url{https://hospital-monioring.vercel.app/}
+	\item \textbf{Test account:} \texttt{firas@mail.com}
+	\item \textbf{Password:} \texttt{Firas*1234}
+\end{itemize}

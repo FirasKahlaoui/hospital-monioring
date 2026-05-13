@@ -9,12 +9,12 @@
 
 \begin{description}
 	\item[Hardware setup.]
-	      One ESP32-WROOM-32 development board, one DHT22 sensor, one MAX30102 breakout
+	      One ESP32-WROOM-32\cite{esp32_datasheet} development board, one DHT22\cite{dht22_datasheet} sensor, one MAX30102\cite{max30102_datasheet} breakout
 	      board, all powered via USB from a laptop running the serial monitor.
 
 	\item[Network environment.]
 	      2.4\,GHz 802.11n Wi-Fi network.
-	      Firebase Realtime Database.
+	      Firebase Realtime Database\cite{firebase_rtdb}.
 
 	\item[Firmware build.]
 	      Debug build (\texttt{deploy.sh --code --debug}) for all experiments, to capture
@@ -22,7 +22,7 @@
 \end{description}
 
 \subsection{Backend Protocol}
-The backend is validated using a \textbf{tRPC server-side caller} and
+The backend is validated using a \textbf{tRPC\cite{trpc} server-side caller} and
 \textbf{Vitest} for unit testing. The test environment targets a local Node.js
 runtime and optionally a Firestore emulator. Test cases cover authentication,
 schema validation, and alert/notification procedures.
@@ -190,7 +190,7 @@ specification against the observed behaviour of the implemented embedded subsyst
 		\midrule
 		Real-time updates & Update UI in < 1\,s & \cmark\ RTDB subscriptions with 1\,Hz data push \\
 		AI forecasting & Short-horizon trend & \cmark\ 5-step OLS forecast in \texttt{ai.getInsights} \\
-		Face recognition & Authorized staff detection & \cmark\ face-api.js + 0.6 confidence threshold \\
+		Face recognition & Authorized staff detection & \cmark\ face-api.js\cite{faceapi} + 0.6 confidence threshold \\
 		Email alerting & Dispatch on critical event & \cmark\ SMTP relay procedure invoked by dashboard \\
 		\bottomrule
 	\end{tabularx}

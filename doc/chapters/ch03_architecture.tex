@@ -58,10 +58,10 @@ well-defined interface:
 \end{figure}
 
 \subsection*{Backend Functional Decomposition}
-The backend is architected as a \textbf{Modular tRPC Router} system. The \textbf{Authentication Middleware} establishes server sessions from Firebase ID tokens (login) and enforces session cookies for protected procedures. The \textbf{Clinical Management Layer} handles Firestore operations for users and people (patients/staff). The \textbf{Event and Alert Layer} records presence events and creates alert logs, which are mirrored to the Realtime Database for real-time UI updates. The \textbf{AI Procedure Layer} provides windowed data analysis for predictive insights. SMTP email is available as an explicit procedure triggered by the dashboard when threshold alerts are raised.
+The backend is architected as a \textbf{Modular tRPC\cite{trpc} Router} system. The \textbf{Authentication Middleware} establishes server sessions from Firebase\cite{firebase_auth} ID tokens (login) and enforces session cookies for protected procedures. The \textbf{Clinical Management Layer} handles Firestore\cite{firebase_firestore} operations for users and people (patients/staff). The \textbf{Event and Alert Layer} records presence events and creates alert logs, which are mirrored to the Realtime Database for real-time UI updates. The \textbf{AI Procedure Layer} provides windowed data analysis for predictive insights. SMTP email is available as an explicit procedure triggered by the dashboard when threshold alerts are raised.
 
 \subsection*{Web and AI Functional Decomposition}
-The web dashboard is decomposed into four primary functional blocks: (1) the \textbf{Telemetry Subscription Bridge}, which maintains the high-frequency link to the Realtime Database; (2) the \textbf{Clinical Visualization Engine}, which manages the rendering of Recharts-based vitals; (3) the \textbf{Local Intelligence Module}, which executes face-recognition models in-browser and reports detection events every 600\,ms; and (4) the \textbf{Alert Orchestrator}, which applies user-defined thresholds and triggers SMTP email alerts via a backend procedure. The AI subsystem decomposes into a \textbf{Statistical Signal Processor} for anomaly detection and a \textbf{Trend Extrapolator} for predictive forecasting.
+The web dashboard is decomposed into four primary functional blocks: (1) the \textbf{Telemetry Subscription Bridge}, which maintains the high-frequency link to the Realtime Database\cite{firebase_rtdb}; (2) the \textbf{Clinical Visualization Engine}, which manages the rendering of Recharts\cite{recharts}-based vitals; (3) the \textbf{Local Intelligence Module}, which executes face-recognition\cite{faceapi} models in-browser and reports detection events every 600\,ms; and (4) the \textbf{Alert Orchestrator}, which applies user-defined thresholds and triggers SMTP email alerts via a backend procedure. The AI subsystem decomposes into a \textbf{Statistical Signal Processor} for anomaly detection and a \textbf{Trend Extrapolator} for predictive forecasting.
 
 \section{Hardware Architecture}
 
@@ -81,6 +81,7 @@ The web dashboard is decomposed into four primary functional blocks: (1) the \te
 	      IEEE 802.11b/g/n Wi-Fi radio integrated on-chip.
 	      AP interface (192.168.4.1) serves the configuration portal.
 \end{description}
+Datasheet specifications for the ESP32, DHT22, and MAX30102 are referenced for electrical and timing constraints.\cite{esp32_datasheet,dht22_datasheet,max30102_datasheet}
 
 \section{Cloud and Server Infrastructure}
 The system is deployed on a \textbf{Serverless Cloud Infrastructure} to ensure high availability and scalability.
@@ -89,6 +90,7 @@ The system is deployed on a \textbf{Serverless Cloud Infrastructure} to ensure h
 	\item[Persistence Tier.] Firebase Firestore serves as the document-based repository. Its \textbf{flexible schema} allows for rapid iteration of clinical data models (e.g., adding face descriptors), while its \textbf{native integration} with Firebase Auth simplifies security rules.
 	\item[Streaming Tier.] Firebase Realtime Database is used for sensor telemetry. Unlike Firestore, RTDB is optimized for \textbf{frequent, small updates} and provides lower-latency push notifications via WebSockets, which is essential for sub-second clinical monitoring.
 \end{description}
+The deployment stack and database services follow vendor guidance for authentication and streaming data patterns.\cite{vercel,firebase_firestore,firebase_rtdb,firebase_auth}
 
 \section{Software Architecture}
 
@@ -148,7 +150,7 @@ The service layer is implemented as a \textbf{Node.js} application using the \te
 \end{figure}
 
 \subsection*{Web Dashboard Software}
-The user interface is a single-page application (SPA) built with \textbf{React} and \textbf{Vite}. It leverages the \textbf{Shadcn UI} component library for a modern, responsive clinical aesthetic. The application utilizes a reactive subscription model to the Firebase Realtime Database, ensuring that patient vitals are updated on-screen with sub-second latency. Data visualization is handled by the \textbf{Recharts} library, which renders interactive time-series plots of the patient's physiological trends. Face recognition runs locally in the browser using \texttt{face-api.js} models loaded from a CDN and compares detected descriptors against enrolled identities stored in Firestore.
+The user interface is a single-page application (SPA) built with \textbf{React} and \textbf{Vite}. It leverages the \textbf{Shadcn UI} component library for a modern, responsive clinical aesthetic. The application utilizes a reactive subscription model to the Firebase Realtime Database, ensuring that patient vitals are updated on-screen with sub-second latency. Data visualization is handled by the \textbf{Recharts} library, which renders interactive time-series plots of the patient's physiological trends. Face recognition runs locally in the browser using \texttt{face-api.js} models loaded from a CDN and compares detected descriptors against enrolled identities stored in Firestore.\cite{react,recharts,faceapi}
 
 \subsection*{AI Software}
 The AI insights layer is integrated as a set of tRPC procedures that process windowed telemetry vectors. The system employs \textbf{statistical anomaly detection} using Z-score analysis to identify clinical outliers. For forecasting, the engine applies a \textbf{linear regression model} to project vital sign trends for the subsequent 5 samples (short-horizon trend). This predictive capability allows the dashboard to provide "AI Insights" that warn clinicians of potential instability before standard threshold alerts are triggered.

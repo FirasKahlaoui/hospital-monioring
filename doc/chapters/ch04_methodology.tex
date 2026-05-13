@@ -5,7 +5,7 @@ This chapter formalizes the engineering methods used to transform the problem st
 
 \section{System Design}
 
-\subsection{Embedded Subsystem (ESP32)}
+\subsection{Embedded Subsystem (ESP32\cite{esp32_datasheet})}
 
 \subsubsection{Heart Rate}
 
@@ -57,14 +57,14 @@ The total latency from sensor event to database record is:
 
 where:
 \begin{itemize}
-	\item $T_{\text{acq}}$: sensor acquisition time (DHT22: up to 2\,000\,ms;
-	      MAX30102: continuous FIFO drain, $\approx$25\,ms per sample at default rate).
+	\item $T_{\text{acq}}$: sensor acquisition time (DHT22\cite{dht22_datasheet}: up to 2\,000\,ms;
+	      MAX30102\cite{max30102_datasheet}: continuous FIFO drain, $\approx$25\,ms per sample at default rate).
 	\item $T_{\text{proc}}$: local computation ($<$5\,ms per SpO\textsubscript{2}
 	      update; $<$1\,ms for BPM average).
 	\item $T_{\text{serial}}$: JSON string build ($<$1\,ms).
 	\item $T_{\text{TLS}}$: TLS handshake on first connection (1--3\,s);
 	      session reuse on subsequent requests ($<$5\,ms).
-	\item $T_{\text{RTT}}$: HTTPS round-trip to Firebase
+	\item $T_{\text{RTT}}$: HTTPS round-trip to Firebase\cite{firebase_rtdb}
 	      ($\approx$100--300\,ms over 2.4\,GHz Wi-Fi).
 \end{itemize}
 
@@ -91,7 +91,7 @@ The backend logic is centered on a \textbf{typed procedure layer} with session-b
 \end{figure}
 
 \subsection{Web Dashboard Subsystem Methodology}
-The dashboard utilizes a \textbf{reactive component architecture} built with React Hooks. It maintains a real-time connection to the Firebase Realtime Database using a WebSocket-based subscription model. For security and presence tracking, the methodology includes local inference using \texttt{face-api.js} to detect and identify authorized medical personnel. Visualizations are rendered using a rolling buffer of vitals, updated every 1,000\,ms to maintain a high-fidelity trend view. A camera detection loop runs every 600\,ms; alerts are issued only after a stability threshold of 5 consecutive frames.
+The dashboard utilizes a \textbf{reactive component architecture} built with React Hooks. It maintains a real-time connection to the Firebase Realtime Database\cite{firebase_rtdb} using a WebSocket-based subscription model. For security and presence tracking, the methodology includes local inference using \texttt{face-api.js}\cite{faceapi} to detect and identify authorized medical personnel. Visualizations are rendered using a rolling buffer of vitals, updated every 1,000\,ms to maintain a high-fidelity trend view. A camera detection loop runs every 600\,ms; alerts are issued only after a stability threshold of 5 consecutive frames.
 
 \subsection{Intelligence Layer: Statistical Signal Processing}
 The intelligence layer formulates the monitoring task as a \textbf{time-series anomaly detection and forecasting problem}. Computation is intentionally offloaded to the service layer to optimize resource allocation.

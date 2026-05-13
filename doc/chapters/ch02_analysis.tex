@@ -12,12 +12,12 @@ Modern clinical environments face a critical challenge in monitoring patient phy
 \section{System Description}
 
 The system is a networked, multi-tier hospital monitoring solution.
-At its base sits the \textbf{ESP32 embedded acquisition node}, which occupies the
+At its base sits the \textbf{ESP32 embedded acquisition node}\cite{esp32_datasheet}, which occupies the
 sensor layer and embedded layer. Its role is to collect physiological and environmental
 measurements, apply local signal processing to derive meaningful values (BPM,
 SpO\textsubscript{2}), and transmit structured records to a cloud database.
 
-The system follows a multi-tier architectural pattern designed for high availability and low-latency monitoring. At the edge, the \textbf{IoT Layer} (ESP32) performs continuous data acquisition. This telemetry is pushed to the \textbf{Cloud Persistence Layer} (Firebase), where Realtime Database handles live streams and Firestore manages long-term clinical records (users, people, alerts, and detection events). The \textbf{Service Layer} (Node.js/tRPC) provides a type-safe interface for management operations and AI inference, while the \textbf{Application Layer} (React) delivers a high-fidelity monitoring interface for medical staff. The face-recognition pipeline runs directly in the browser using face-api.js and feeds detection events back to the server for audit logging and alerting.
+The system follows a multi-tier architectural pattern designed for high availability and low-latency monitoring. At the edge, the \textbf{IoT Layer} (ESP32) performs continuous data acquisition. This telemetry is pushed to the \textbf{Cloud Persistence Layer} (Firebase\cite{firebase_rtdb,firebase_firestore,firebase_auth}), where Realtime Database handles live streams and Firestore manages long-term clinical records (users, people, alerts, and detection events). The \textbf{Service Layer} (Node.js/tRPC\cite{trpc}) provides a type-safe interface for management operations and AI inference, while the \textbf{Application Layer} (React\cite{react}) delivers a high-fidelity monitoring interface for medical staff. The face-recognition pipeline runs directly in the browser using face-api.js\cite{faceapi} and feeds detection events back to the server for audit logging and alerting.
 
 \begin{figure}[H]
     \centering
@@ -101,9 +101,9 @@ The following operational scenarios define the expected system behaviour.
 \subsection*{Embedded Node — Inputs}
 
 \begin{itemize}
-	\item \textbf{DHT22 (GPIO~4, one-wire):} digital temperature (°C) and relative
+	\item \textbf{DHT22\cite{dht22_datasheet} (GPIO~4, one-wire):} digital temperature (°C) and relative
 	      humidity (\%).
-	\item \textbf{MAX30102 (I\textsuperscript{2}C fast mode):} raw infrared
+	\item \textbf{MAX30102\cite{max30102_datasheet} (I\textsuperscript{2}C fast mode):} raw infrared
 	      and red photodiode FIFO values, used to compute BPM and SpO\textsubscript{2}.
 \end{itemize}
 
