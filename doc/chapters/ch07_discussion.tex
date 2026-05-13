@@ -20,10 +20,17 @@ The SpO\textsubscript{2} accuracy of $\pm$1\,\% is within the $\pm$2\,\% toleran
 generally accepted.
 
 \subsection{Backend and AI Subsystems}
-The backend results demonstrate high consistency in procedure execution, with tRPC overhead remaining negligible compared to the Firebase round-trip time. The AI forecasting accuracy (MAE of 1.2 BPM) is clinically valid for providing early-warning signals, although its performance is highly dependent on the quality of the incoming 1Hz telemetry stream. Anomaly detection showed high precision (0.94), successfully filtering out transient sensor noise while capturing sustained physiological deviations.
+The backend procedures are structurally consistent with the tRPC schema and are
+guarded by session-based authentication. Quantitative latency and accuracy metrics
+for AI inference remain to be measured in the deployment environment. The AI
+forecasting model is appropriate for short-horizon trend visualization but is
+expected to be sensitive to data quality and non-linear physiological transitions.
 
 \subsection{Web Dashboard Subsystem}
-The dashboard's performance is stable under continuous operation, with the WebWorker-based face recognition maintaining accurate personnel logs without impacting the real-time chart frame rates. The responsive design ensures that clinicians can monitor vitals across different device form factors with no loss of data fidelity.
+The dashboard operates with real-time updates and a 600\,ms face recognition loop.
+Face recognition executes on the main browser thread, so performance depends on
+the end-user device. The responsive design ensures that clinicians can monitor
+vitals across different device form factors with no loss of data fidelity.
 
 % ============================================================
 \section{Limitations}
@@ -62,14 +69,14 @@ The dashboard's performance is stable under continuous operation, with the WebWo
 \subsection{Web Dashboard Subsystem}
 \begin{description}
 	\item[High resource consumption.] The real-time chart rendering and local face-recognition models impose significant CPU and GPU load on the browser, which may reduce battery life on mobile devices.
-	\item[Browser-specific optimizations.] While cross-browser compatible, the system performs best in Chromium-based browsers due to advanced WebGL and WebWorker optimizations.
+	\item[Browser-specific optimizations.] While cross-browser compatible, the system performs best in Chromium-based browsers due to advanced WebGL optimizations.
 	\item[No persistent offline mode.] While the dashboard handles transient disconnections, it does not support full offline clinical record access.
 \end{description}
 
 \subsection{AI Subsystem}
 \begin{description}
-	\item[Linear trend assumptions.] The current forecasting model uses linear regression, which may fail to capture complex non-linear physiological events such as sudden cardiac arrythmias.
-	\item[Small baseline window.] The 20-point analysis window is sufficient for short-term insights but lacks the context of multi-hour or multi-day historical trends.
+	\item[Linear trend assumptions.] The current forecasting model uses linear regression, which may fail to capture complex non-linear physiological events such as sudden cardiac arrhythmias.
+	\item[Short baseline window.] The analysis window is short (target 20 points, minimum 5), providing only local context and limiting robustness during long-term drift.
 	\item[Data quality dependency.] The accuracy of anomaly detection is directly coupled to the ESP32's signal filtering; poor sensor contact results in a higher false-positive rate.
 \end{description}
 
@@ -85,7 +92,8 @@ The 8\,KiB task stack was found to be adequate for the TLS handshake and async s
 operations, with an estimated 1.5\,KiB headroom.
 
 The choice of string-based JSON construction introduces heap fragmentation over long
-sessions.
+sessions. This risk is partially mitigated by the 1\,Hz push interval but remains a
+concern for multi-day deployments.
 
 % ============================================================
 \section{Robustness}

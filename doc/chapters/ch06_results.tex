@@ -22,73 +22,50 @@
 \end{description}
 
 \subsection{Backend Protocol}
-The backend was validated using a \textbf{tRPC server-side caller} and \textbf{Vitest} for unit testing. The test environment consisted of a local Node.js v20 runtime and a Firestore emulator. A total of 15 integration test cases were executed, covering role-based authentication, schema validation, and SMTP relay reliability.
+The backend is validated using a \textbf{tRPC server-side caller} and
+\textbf{Vitest} for unit testing. The test environment targets a local Node.js
+runtime and optionally a Firestore emulator. Test cases cover authentication,
+schema validation, and alert/notification procedures.
 
 \subsection{Web Dashboard Protocol}
-The dashboard was tested across Chrome and Firefox on both Windows and Linux. Real-time update latency was measured using the \textbf{Chrome DevTools Performance profiler}. Test scenarios included multi-patient monitoring views (up to 5 concurrent streams) and automated face detection triggers for authorized and unauthorized personnel.
+The dashboard should be tested across Chrome and Firefox on both Windows and Linux.
+Real-time update latency can be measured using the \textbf{Chrome DevTools Performance profiler}. Test scenarios include multi-patient monitoring views (up to 5 concurrent streams) and automated face detection triggers for authorized and unauthorized personnel.
 
 \subsection{AI Protocol}
-The AI subsystem was evaluated using a \textbf{synthetic clinical dataset} of 500 data points containing simulated vital sign transitions (e.g., resting to tachycardia). Evaluation metrics included \textbf{Mean Squared Error (MSE)} for forecasting accuracy and \textbf{F1-score} for anomaly detection precision and recall. Tests were performed on the Node.js service layer with a 20-point sliding window.
+The AI subsystem is evaluated using synthetic clinical datasets containing
+simulated vital sign transitions (e.g., resting to tachycardia). Evaluation
+metrics include \textbf{Mean Squared Error (MSE)} for forecasting accuracy and
+\textbf{F1-score} for anomaly detection precision and recall. Tests are executed
+on the Node.js service layer using the same sliding-window inputs as the
+dashboard.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\linewidth]{Validation Pipeline.png}
+    \caption{System-wide validation pipeline from hardware to cloud reporting.}
+    \label{fig:validation_pipeline}
+\end{figure}
 
 \section{Software Results (PC / Server)}
 
-\begin{table}[H]
-	\centering
-	\caption{Backend API performance metrics.}
-	\label{tab:backend_results}
-	\begin{tabular}{lll}
-		\toprule
-		\textbf{Endpoint}       & \textbf{Latency (Avg)} & \textbf{Success Rate} \\
-		\midrule
-		\texttt{people.list}    & 45\,ms                 & 100\%                 \\
-		\texttt{patients.get}   & 32\,ms                 & 100\%                 \\
-		\texttt{events.log}     & 28\,ms                 & 99.8\%                \\
-		\texttt{ai.getInsights} & 55\,ms                 & 99.5\%                \\
-		\bottomrule
-	\end{tabular}
-\end{table}
-
-\begin{table}[H]
-	\centering
-	\caption{AI model evaluation results.}
-	\label{tab:ai_results}
-	\begin{tabular}{lll}
-		\toprule
-		\textbf{Task}     & \textbf{Metric} & \textbf{Value} \\
-		\midrule
-		Anomaly Detection & F1-Score        & 0.92           \\
-		Anomaly Detection & Precision       & 0.94           \\
-		Vital Forecasting & MAE (HR)        & 1.2 BPM        \\
-		Vital Forecasting & RMSE (SpO2)     & 0.8\%          \\
-		\bottomrule
-	\end{tabular}
-\end{table}
+The repository includes automated tests for authentication logout, events logging,
+alert creation, and patient CRUD flows (\texttt{alerts.test.ts},
+\texttt{events.test.ts}, \texttt{patients.test.ts}). These tests validate the
+shape of API responses and enforce consistent procedure behavior. Formal
+performance benchmarks (latency, throughput) are not yet recorded and remain a
+required measurement in the final validation campaign.
 
 % ============================================================
 \section{Embedded Results (ESP32)}
 % ============================================================
 
-Table~\ref{tab:sensor_accuracy} reports the accuracy of the ESP32 sensor readings.
+Formal sensor accuracy measurements are not included in the codebase and should
+be collected using a calibrated reference device. The embedded implementation
+applies guards to reject NaN readings from the DHT22 and invalid IR levels from
+the MAX30102, ensuring data integrity at the source.
 
-\begin{table}[H]
-	\centering
-	\caption{ESP32 sensor accuracy validation in an indoor environment).}
-	\label{tab:sensor_accuracy}
-	\begin{tabular}{lcccc}
-		\toprule
-		\textbf{Parameter}        & \textbf{Reference}        & \textbf{Mean Measured}
-		                          & \textbf{Mean Abs.\ Error} & \textbf{Std.\ Dev.}                          \\
-		\midrule
-		Temperature (°C)          & 26.0\,°C                  & 26.1\,°C               & 0.1\,°C  & 0.15\,°C \\
-		Humidity (\%)             & 53.0\,\%                  & 53.4\,\%               & 0.4\,\%  & 0.8\,\%  \\
-		Heart Rate (BPM)          & 72\,BPM                   & 73\,BPM                & 1.0\,BPM & 2.3\,BPM \\
-		SpO\textsubscript{2} (\%) & 98\,\%                    & 97\,\%                 & 1.0\,\%  & 0.9\,\%  \\
-		\bottomrule
-	\end{tabular}
-\end{table}
-
-Table~\ref{tab:stability} reports the outcome of the three operational sessions,
-focusing on Wi-Fi recovery and data continuity.
+Table~\ref{tab:stability} provides a template for reporting Wi-Fi recovery and
+data continuity once measurements are collected.
 
 \begin{table}[H]
 	\centering
@@ -98,9 +75,9 @@ focusing on Wi-Fi recovery and data continuity.
 		\toprule
 		\textbf{Scenario}               & \textbf{Recovery Time} & \textbf{Records Lost}             \\
 		\midrule
-		Normal 15-min session           & N/A                    & 0                                 \\
-		Mid-session Wi-Fi dropout       & $\approx$12\,s         & 12 (1 per second during outage)   \\
-		Cold-start, Wi-Fi delayed 30\,s & 30\,s                  & 30 (not retried; no local buffer) \\
+		Normal 15-min session           & TBD                    & TBD                               \\
+		Mid-session Wi-Fi dropout       & TBD                    & TBD                               \\
+		Cold-start, Wi-Fi delayed 30\,s & TBD                    & TBD                               \\
 		\bottomrule
 	\end{tabular}
 \end{table}
@@ -112,34 +89,34 @@ focusing on Wi-Fi recovery and data continuity.
 
 \begin{table}[H]
 	\centering
-	\caption{System-wide latency and FPS comparison.}
+	\caption{Analytical timing bounds derived from implementation constants.}
 	\label{tab:latency_full}
 	\begin{tabular}{lccl}
 		\toprule
-		\textbf{Stage}              & \textbf{PC/Server}               & \textbf{ESP32}      & \textbf{Analysis}           \\
+		\textbf{Stage}              & \textbf{PC/Server} & \textbf{ESP32} & \textbf{Basis} \\
 		\midrule
-		Sensor acquisition          & N/A                              & $\leq$2\,000\,ms    & Hardware constraint (DHT22) \\
-		Local processing            & N/A                              & $<$5\,ms            & Negligible                  \\
-		HTTPS upload (steady state) & N/A                              & 120--280\,ms        & RTT to Firebase             \\
-		Backend API response        & 28--55\,ms                       & N/A                 & tRPC overhead               \\
-		AI inference                & 8--15\,ms                        & N/A                 & Vector processing           \\
-		End-to-end (sensor to UI)   & \multicolumn{2}{c}{180--450\,ms} & Real-time compliant         \\
-		\midrule
-		\textbf{FPS — Dashboard UI} & \textbf{60\,FPS}                 & N/A                 & Recharts render budget      \\
-		\textbf{FPS — Face detect.} & \textbf{$\approx$15\,FPS}        & N/A                 & WebWorker inference rate    \\
-		\textbf{FPS — Sensor push}  & N/A                              & \textbf{1\,Hz}      & Upload interval constraint  \\
+		Sensor acquisition          & N/A               & $\leq$2\,000\,ms & DHT22 inter-sample interval \\
+		Local processing            & N/A               & $<$5\,ms       & MAX30102 processing budget \\
+		Firebase push cadence        & N/A               & 1\,000\,ms     & \texttt{FIREBASE\_INTERVAL\_MS} \\
+		Face detection cadence       & 600\,ms           & N/A            & Dashboard interval loop \\
+		Alert stability gate         & $\approx$3\,s     & N/A            & $5$ frames at 600\,ms \\
+		AI refetch interval          & 15\,s             & N/A            & Dashboard AI query interval \\
 		\bottomrule
 	\end{tabular}
 \end{table}
 
-The dashboard rendering pipeline achieves a sustained 60\,FPS for chart updates,
-computed as $\text{FPS} = 1 / T_{\text{inference}} = 1 / 16.7\,\text{ms}$.
-The face detection WebWorker, running the face-api.js SSD MobileNet model, achieves
-approximately 15\,FPS ($T_{\text{inference}} \approx 67\,\text{ms}$ per frame) on a
-modern desktop CPU, which is adequate for room-entry tracking.
 The embedded sensor push rate is fixed at 1\,Hz by the \texttt{FIREBASE\_INTERVAL\_MS}
 parameter, yielding an effective sensor FPS of 1\,frame/s for patient vitals and
 0.5\,frame/s for room data (constrained by the DHT22 2\,s minimum inter-sample interval).
+The face recognition pipeline processes frames every 600\,ms; alerting requires
+5 consecutive detections to reduce false positives.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.7\linewidth]{ESP32 Communication Flow.png}
+    \caption{ESP32 state machine and Wi-Fi/Firebase communication flow.}
+    \label{fig:esp32_flow}
+\end{figure}
 
 % ============================================================
 \section{Comparison: Design Specification vs.\ Observed Behaviour}
@@ -182,44 +159,34 @@ specification against the observed behaviour of the implemented embedded subsyst
 
 \begin{table}[H]
 	\centering
-	\caption{Specification vs.\ implementation validation for backend and web.}
+	\caption{Specification vs.\ implementation mapping for backend and web.}
 	\label{tab:comparison_full}
 	\begin{tabularx}{\linewidth}{lXX}
 		\toprule
-		\textbf{Requirement} & \textbf{Expected}          & \textbf{Observed}           \\
+		\textbf{Requirement} & \textbf{Expected} & \textbf{Implementation Evidence} \\
 		\midrule
-		Real-time Updates    & Update UI in < 1\,s        & \cmark\ Avg latency 320\,ms \\
-		AI Forecasting       & 5-minute trend accuracy    & \cmark\ MAE < 2.0 BPM       \\
-		Face Recognition     & Authorized staff login     & \cmark\ 92\% accuracy at 2m \\
-		Email Alerting       & Dispatch on critical event & \cmark\ Delivered in < 5\,s \\
+		Real-time updates & Update UI in < 1\,s & \cmark\ RTDB subscriptions with 1\,Hz data push \\
+		AI forecasting & Short-horizon trend & \cmark\ 5-step OLS forecast in \texttt{ai.getInsights} \\
+		Face recognition & Authorized staff detection & \cmark\ face-api.js + 0.6 confidence threshold \\
+		Email alerting & Dispatch on critical event & \cmark\ SMTP relay procedure invoked by dashboard \\
 		\bottomrule
 	\end{tabularx}
 \end{table}
 
 \subsection{Theoretical Model vs.\ Observed System Behaviour}
 
-The latency model defined in Chapter~4 (Equation~\ref{eq:latency}) predicted
-a steady-state end-to-end latency in the range 225--305\,ms for patient data
-(excluding the DHT22 2\,s acquisition floor).
-The observed end-to-end latency of 180--450\,ms is consistent with this model:
-the lower bound matches low-contention Wi-Fi conditions where the TLS session is
-already established, while the upper bound corresponds to periods of elevated
-network RTT or transient Firebase congestion.
+The latency model defined in Chapter~4 (Equation~\ref{eq:latency}) provides a
+framework for expected end-to-end latency. Empirical validation is required to
+quantify RTT and TLS overhead in the deployment environment.
 
-The delta-threshold filter was predicted to suppress the majority of redundant
-uploads during steady-state monitoring (constant vitals).
-In practice, during a 15-minute resting session, the filter reduced the total
-number of Firebase write operations by approximately 60\,\% compared to an
-unconditional 1\,Hz upload strategy, confirming the model's design intent.
+The delta-threshold filter is expected to suppress redundant uploads during
+steady-state monitoring (constant vitals). Quantifying the reduction in write
+volume requires a controlled test that logs raw and filtered streams.
 
-The AI forecasting model, based on OLS linear regression over a 20-point window,
-was designed with the assumption that short-term vital sign trends are
-approximately linear.
-This assumption holds well under stable resting conditions (MAE of 1.2\,BPM),
-but degrades during rapid transitions such as post-exercise tachycardia, where
-the linear model underestimates the rate of change.
-This is consistent with the known limitation of the linear extrapolator and
-motivates the future work on LSTM-based models.
+The AI forecasting model, based on OLS linear regression over a short window,
+assumes near-linear short-term dynamics. This assumption is appropriate for
+stable resting conditions but is expected to degrade during rapid transitions.
+Future work should quantify this effect with controlled datasets.
 
 % ============================================================
 \section{Error Analysis}
@@ -230,10 +197,9 @@ motivates the future work on LSTM-based models.
 Three categories of error were identified and analysed:
 
 \textbf{Sensor read errors.}
-The DHT22 occasionally returns NaN on the first read after power-up due to its
-required 1-second warm-up delay.
-The NaN guard in \texttt{updateSensors()} discards the invalid reading silently.
-No invalid values were written to the database in any test session.
+The DHT22 can return NaN on the first read after power-up due to its required
+warm-up delay. The NaN guard in \texttt{updateSensors()} discards invalid readings
+before they can be uploaded.
 
 \textbf{Records lost during outage (open).}
 Records generated during a Wi-Fi outage are discarded.
@@ -241,11 +207,15 @@ The system does not implement local buffering or retry-on-reconnect.
 
 \subsection{Backend, Web Dashboard, and AI Subsystems}
 
-\textbf{Authentication Timeouts.}
-During long monitoring sessions, Firebase ID tokens may expire. The dashboard was updated to include an \texttt{authInterceptor} that automatically refreshes the token, ensuring uninterrupted API access.
+\textbf{Authentication expiry (open).}
+Session cookies are signed and have a fixed expiration; a renewal mechanism is not
+implemented in the current dashboard and should be added for long-lived sessions.
 
-\textbf{Web Worker Contention.}
-Running face-api.js on the main thread caused occasional UI stutter during chart rendering. This was resolved by moving the neural network inference to a dedicated Web Worker, isolating the computational load from the rendering thread.
+\textbf{Main-thread inference load (open).}
+Face recognition runs on the main browser thread. Under heavy chart rendering or
+low-power devices, this can lead to UI stutter; a dedicated Web Worker pipeline is
+recommended for performance isolation.
 
-\textbf{AI False Positives.}
-The Z-score model occasionally flagged sensor "noise" (e.g., finger movement) as a clinical anomaly. To mitigate this, a temporal persistence filter was added: an anomaly is only reported if it persists for more than 3 consecutive samples.
+\textbf{AI false positives (open).}
+The Z-score model can flag short transient noise. A temporal persistence filter for
+AI anomalies is not yet implemented and should be added to reduce alert noise.

@@ -14,8 +14,8 @@ of four integrated subsystems:
 	      user authentication.
 	\item \textbf{Web dashboard:} real-time data visualisation, historical charts,
 	      and alert management for medical staff.
-	\item \textbf{AI prediction layer:} anomaly detection on patient vitals and
-	      environmental condition assessment using cloud-hosted machine learning models.
+	\item \textbf{AI insights layer:} statistical anomaly detection and short-horizon
+	      trend forecasting executed on the server and exposed through a typed API.
 \end{itemize}
 
 \section{Problem Statement}
@@ -68,21 +68,22 @@ The concrete contributions of the group are as follows:
 
 	\item[Backend server.]
 	      Design and deployment of a Node.js/tRPC service layer with Firebase Admin SDK
-	      integration, Role-Based Access Control (RBAC), Zod schema validation, a hybrid
-	      alerting engine combining fixed clinical thresholds with Z-score anomaly
-	      detection, and automated SMTP email notifications.
+	      integration, Role-Based Access Control (RBAC), Zod schema validation, event
+	      and alert log generation for presence monitoring, a statistical AI insights
+	      endpoint for vitals, and an SMTP email procedure triggered by dashboard alerts.
 
 	\item[Web dashboard.]
-	      Implementation of a React/Vite single-page application with real-time Firebase
-	      RTDB subscriptions, Recharts-based vital sign visualisation, an AI Insights
-	      panel, and a WebWorker-based face-api.js pipeline for authorized personnel
-	      tracking using an external USB camera.
+		      Implementation of a React/Vite single-page application with real-time Firebase
+		      RTDB subscriptions, Recharts-based vital sign visualisation, an AI Insights
+		      panel, and an on-device face-api.js pipeline running in the browser for
+		      authorized personnel tracking using an external USB camera.
 
-	\item[AI prediction layer.]
-	      Server-side implementation of a statistical anomaly detection engine (Z-score
-	      over a 20-point sliding window) and a 5-minute vital sign forecasting model
-	      (Ordinary Least Squares linear regression), exposed as tRPC procedures and
-	      integrated into the dashboard's clinical status display.
+	\item[AI insights layer.]
+		      Server-side implementation of a statistical anomaly detection engine (Z-score
+		      over a short sliding window of recent points, with a minimum of 5 samples)
+		      and a 5-step vital sign forecasting model (Ordinary Least Squares linear
+		      regression), exposed as tRPC procedures and integrated into the dashboard's
+		      clinical status display.
 \end{description}
 
 \section{Organization}

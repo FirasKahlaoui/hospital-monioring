@@ -20,31 +20,33 @@ acquisition when the architecture explicitly separates sensor timing from networ
 latency using FreeRTOS task pinning. The backend shows that a serverless, type-safe
 API can enforce clinical security requirements (RBAC, JWT verification, schema
 validation) with negligible added latency. The dashboard demonstrates that
-browser-native technologies — WebSockets, WebWorkers, and the Recharts rendering
-engine — are sufficient for a 60\,FPS clinical monitoring interface with concurrent
+browser-native technologies — WebSockets and the Recharts rendering
+engine — are sufficient for a responsive clinical monitoring interface with concurrent
 AI inference. The AI layer demonstrates that simple statistical methods (Z-score
-anomaly detection and OLS linear regression) deliver clinically meaningful early
-warnings with high precision and low computational cost.
+anomaly detection and OLS linear regression) can deliver clinically meaningful
+early warnings with low computational cost; precision must be validated with
+clinical datasets.
 
 % ============================================================
 \section{Achievement Against Objectives}
 % ============================================================
 
-All four functional objectives defined in Chapter~1 were met. Continuous acquisition
-of temperature, humidity, heart rate, and SpO\textsubscript{2} was achieved at up to
-1\,Hz, with sensor accuracy within or better than manufacturer specifications.
-Data transmission to Firebase RTDB operates in steady state with an end-to-end
-latency well within the 1-second real-time threshold. The web dashboard provides
-full real-time visualisation, alert management, and historical browsing. The AI
-layer successfully classifies clinical status and provides 5-minute vital sign
-forecasts with an MAE of 1.2\,BPM.
+All four functional objectives defined in Chapter~1 are addressed by the current
+implementation. Continuous acquisition of temperature, humidity, heart rate, and
+SpO\textsubscript{2} is designed for up to 1\,Hz transmission, constrained by sensor
+limits. Data transmission to Firebase RTDB operates on a 1\,s push interval, with
+end-to-end latency dependent on network RTT. The web dashboard provides real-time
+visualisation, alert management, and historical browsing. The AI layer classifies
+clinical status and provides short-horizon vital sign forecasts based on recent
+telemetry windows.
 
-All four non-functional objectives were also met: the system recovers autonomously
-from Wi-Fi loss within 10--15\,s (availability); the NaN guard and IR threshold
-check prevent any invalid records from reaching the database (reliability);
-Firebase ID token verification on every API call and TLS-encrypted transport
+The non-functional objectives are addressed by design: the system recovers
+autonomously from Wi-Fi loss via periodic reconnect attempts (availability); the
+NaN guard and IR threshold check prevent invalid records from reaching the
+database (reliability); Firebase token verification and TLS-encrypted transport
 protect clinical data (security); and the delta-threshold upload filter keeps
-end-to-end latency dominated by network RTT rather than upload frequency (performance).
+end-to-end latency dominated by network RTT rather than upload frequency
+(performance). Formal measurements remain pending.
 
 % ============================================================
 \section{Limitations}

@@ -8,11 +8,11 @@ sensor layer and embedded layer. Its role is to collect physiological and enviro
 measurements, apply local signal processing to derive meaningful values (BPM,
 SpO\textsubscript{2}), and transmit structured records to a cloud database.
 
-The system follows a multi-tier architectural pattern designed for high availability and low-latency monitoring. At the edge, the \textbf{IoT Layer} (ESP32) performs continuous data acquisition. This telemetry is pushed to the \textbf{Cloud Persistence Layer} (Firebase), where Realtime Database handles live streams and Firestore manages long-term clinical records. The \textbf{Service Layer} (Node.js/tRPC) provides a type-safe interface for management operations and AI inference, while the \textbf{Application Layer} (React) delivers a high-fidelity monitoring interface for medical staff.
+The system follows a multi-tier architectural pattern designed for high availability and low-latency monitoring. At the edge, the \textbf{IoT Layer} (ESP32) performs continuous data acquisition. This telemetry is pushed to the \textbf{Cloud Persistence Layer} (Firebase), where Realtime Database handles live streams and Firestore manages long-term clinical records (users, people, alerts, and detection events). The \textbf{Service Layer} (Node.js/tRPC) provides a type-safe interface for management operations and AI inference, while the \textbf{Application Layer} (React) delivers a high-fidelity monitoring interface for medical staff. The face-recognition pipeline runs directly in the browser using face-api.js and feeds detection events back to the server for audit logging and alerting.
 
 \begin{figure}[H]
     \centering
-    \fbox{Figure Placeholder: System Context Diagram showing the interaction between the hospital staff, the monitoring nodes, and the cloud infrastructure.}
+	\includegraphics[width=\linewidth]{System Context Diagram.png}
     \caption{System context and operational boundaries.}
     \label{fig:system_context}
 \end{figure}
@@ -57,7 +57,7 @@ The following operational scenarios define the expected system behaviour.
 	      Administrative users trigger \mbox{synchronization} between the local cache and the Firebase Firestore backend to ensure data consistency across multiple monitoring stations.
 	      
 	\item[UC-8: Automated Alert Dispatch.]
-	      The backend monitors incoming telemetry against predefined thresholds. When a violation is detected, the system automatically dispatches email alerts to the assigned Doctor and Nurse using an SMTP relay.
+		      The dashboard applies configurable thresholds to live telemetry; when a violation is detected, it triggers email alerts to the assigned Doctor and Nurse through the backend's SMTP relay. The server also creates alert logs for abnormal presence events (unknown person, patient absence).
 \end{description}
 
 \subsection*{Web Dashboard Use Cases}
@@ -67,7 +67,7 @@ The following operational scenarios define the expected system behaviour.
 	      Staff view live vitals (BPM, SpO2) and room conditions via high-frequency charts. The dashboard subscribes directly to the Realtime Database to ensure sub-second latency.
 	      
 	\item[UC-10: Personnel Tracking via Face Recognition.]
-	      Using the terminal's camera, the dashboard identifies staff members entering the room and logs their presence. It cross-references detected faces against the authorized staff directory to flag unauthorized entries.
+		      Using the terminal's camera, the dashboard identifies staff members entering the room and logs their presence. It cross-references detected faces against the authorized staff directory and flags unauthorized entries, applying a multi-frame stability requirement before issuing alerts.
 \end{description}
 
 \subsection*{AI Subsystem Use Cases}
@@ -77,7 +77,7 @@ The following operational scenarios define the expected system behaviour.
 	      The AI layer analyzes time-series windows of patient vitals to identify statistical outliers (Z-score analysis) that may indicate sensor failure or acute physiological changes.
 	      
 	\item[UC-12: Predictive Vital Forecasting.]
-	      Using linear trend analysis, the AI subsystem projects the patient's vitals for the subsequent 5-minute interval, providing clinicians with an early-warning signal for potential instability.
+		      Using linear trend analysis, the AI subsystem projects the patient's vitals for the subsequent 5 samples (e.g., \mbox{$\approx$5\,s} at a 1\,Hz input rate), providing clinicians with a short-horizon early-warning signal.
 \end{description}
 
 \section{Inputs and Outputs}
@@ -102,15 +102,20 @@ The following operational scenarios define the expected system behaviour.
 	      server-side \texttt{timestamp}, pushed on significant change.
 \end{itemize}
 
+	\noindent\textbf{Identifier alignment.} The dashboard subscribes to
+	\texttt{/patients/\{firebaseId\}} for the selected patient. The ESP32 configuration
+	therefore uses the patient's Firebase identifier as \texttt{patientId} to ensure
+	consistent stream access across subsystems.
+
 \subsection*{Backend, Web Dashboard, and AI — Inputs/Outputs}
 
 \begin{itemize}
-    \item \textbf{Backend Inputs:} tRPC procedure calls (JSON), Firebase ID Tokens, and Firestore document snapshots.
-    \item \textbf{Backend Outputs:} Structured clinical records (People, Patients), status confirmations, and SMTP-formatted email alerts.
-    \item \textbf{Web Inputs:} Firebase RTDB telemetry stream, Face-API descriptor vectors, and tRPC query results.
-    \item \textbf{Web Outputs:} Real-time SVG/Canvas visualizations, audit log entries, and automated toast notifications.
-    \item \textbf{AI Inputs:} 20-point windowed vectors of Heart Rate and SpO2 values.
-    \item \textbf{AI Outputs:} Probability-weighted clinical insights, status levels (Stable/Warning/Critical), and 5-minute trend forecasts.
+	\item \textbf{Backend Inputs:} tRPC procedure calls (JSON), Firebase ID Tokens, and Firestore/RTDB document snapshots.
+	\item \textbf{Backend Outputs:} Structured clinical records (Users, People), alert logs, detection events, and SMTP-formatted email alerts when invoked by the dashboard.
+	\item \textbf{Web Inputs:} Firebase RTDB telemetry stream, face-api.js descriptor vectors, and tRPC query results.
+	\item \textbf{Web Outputs:} Real-time SVG/Canvas visualizations, detection event logs, and automated toast notifications.
+	\item \textbf{AI Inputs:} Sliding-window vectors of Heart Rate and SpO2 values (target length 20; minimum 5 required for anomaly detection).
+	\item \textbf{AI Outputs:} Rule-based clinical status (stable/warning/critical), anomaly flags, and 5-step trend forecasts.
 \end{itemize}
 
 \section{Constraints}
@@ -147,13 +152,25 @@ This results in the sensor reporting zero or no data, as if no finger were prese
 even when one is.
 
 \textbf{Why two cores are necessary.}
-The ESP32 contains two independent processing cores that can run tasks simultaneously.
-This hardware feature is the direct solution to the timing conflict described above.
-By assigning sensor reading exclusively to Core~1 and all Firebase communication
-exclusively to Core~0, the two tasks never block each other.
-The sensor continues reading at its required rate regardless of how long Firebase
-takes to authenticate, upload, or reconnect — and Firebase operations proceed without
-being interrupted by sensor activity.
+The ESP32 contains two independent processing cores (Protocol CPU and Application CPU) that can run tasks simultaneously. This hardware feature is the direct solution to the timing conflict described above. By assigning high-priority sensor acquisition exclusively to Core~1 and network-bound Firebase communication exclusively to Core~0, the system achieves \textbf{temporal isolation}. The sensor continues reading at its required frequency (draining the MAX30102 FIFO every 25\,ms) regardless of how long the TLS handshake or Firebase upload takes. This ensures that no cardiac samples are dropped during network congestion, maintaining the integrity of the clinical data stream. Furthermore, Core~0's Wi-Fi management remains responsive, allowing for background SSID scanning and reconnection without introducing jitter into the physiological measurements.
 \subsection*{AI and Cloud Constraints}
 
-The AI layer operates under \textbf{latency constraints} where inference must complete within the 1-second telemetry refresh cycle. Computation is performed on the service layer to preserve the ESP32's limited SRAM for data acquisition. The forecasting model requires a minimum clinical baseline of 5 data points to ensure statistical significance.
+The AI layer operates under \textbf{latency constraints} where inference must complete within the dashboard refresh cycle (15\,s refetch for AI insights) and should remain well below the 1\,Hz telemetry cadence. Computation is performed on the service layer to preserve the ESP32's limited SRAM for data acquisition. The anomaly model requires a minimum of 5 data points to compute a stable standard deviation.
+
+\subsection*{Client-Side Compute Constraints}
+
+The face recognition pipeline executes in the browser and loads multiple
+pre-trained face-api.js models from a CDN. Model load time depends on bandwidth
+and browser caching; inference performance depends on WebGL availability and the
+client CPU/GPU. The detection loop is rate-limited to one frame every 600\,ms to
+avoid saturating the UI thread on mid-range devices.
+
+\subsection*{Data Model Constraints}
+
+The Firestore schema uses collections \texttt{users}, \texttt{people},
+\texttt{detectionEvents}, \texttt{alertLogs}, and \texttt{roomActivityLogs}.
+The Realtime Database stores sensor streams under \texttt{/patients/\{patientId\}}
+and \texttt{/rooms/\{roomId\}}, and mirrors detection/alert logs under
+\texttt{/detectionEvents/\{userId\}} and \texttt{/alertLogs/\{userId\}} for
+real-time client subscription. A base64 storage fallback is used for face
+photos when Firebase Storage is not available.

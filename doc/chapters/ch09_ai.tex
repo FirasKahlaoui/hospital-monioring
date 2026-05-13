@@ -2,33 +2,57 @@
 \label{ch:ai_predictive}
 
 \section{Problem Formulation}
-The clinical monitoring environment requires moving from reactive monitoring (alerting on existing events) to proactive monitoring (alerting on predicted trends). The AI layer addresses this by analyzing the discrete telemetry stream $V = \{v_1, v_2, ..., v_n\}$ where each $v_i$ is a tuple of $(HR, SpO_2, T)$.
+The clinical monitoring environment requires moving from reactive monitoring (alerting on existing events) to proactive monitoring (alerting on predicted trends). The AI layer addresses this by analyzing the discrete telemetry stream $V = \{v_1, v_2, ..., v_n\}$ where each $v_i$ is a tuple of $(HR, SpO_2, t)$ with a server-generated timestamp.
 
 \section{Statistical Anomaly Detection}
-The system implements a rolling \textbf{Z-score analysis} to identify physiological anomalies. For a window of size $k=20$, the mean $\mu$ and standard deviation $\sigma$ are calculated. A data point $x$ is flagged as an anomaly if:
+The system implements a rolling \textbf{Z-score analysis} to identify physiological anomalies. For a window of size $k$ (target 20, minimum 5), the mean $\mu$ and standard deviation $\sigma$ are calculated. A data point $x$ is flagged as an anomaly if:
 \begin{equation}
     |Z| = \left| \frac{x - \mu}{\sigma} \right| > \tau
 \end{equation}
 where $\tau = 2.5$ is the sensitivity threshold. This allows the system to detect sudden spikes in heart rate or drops in oxygen saturation that may not yet have crossed the absolute critical thresholds.
 
 \section{Predictive Forecasting}
-To provide the 5-minute vital sign forecast, the system utilizes \textbf{Ordinary Least Squares (OLS) Linear Regression}. Given the time-series window, the model estimates the trend slope $m$:
+To provide a short-horizon forecast, the system utilizes \textbf{Ordinary Least Squares (OLS) Linear Regression}. Given the time-series window, the model estimates the trend slope $m$:
 \begin{equation}
     m = \frac{n\sum(xy) - \sum x \sum y}{n\sum(x^2) - (\sum x)^2}
 \end{equation}
-The predicted value at time $t+k$ is then calculated as $y_{pred} = m(t+k) + b$. This linear approximation is computationally efficient for real-time execution on the service layer while providing reliable short-term trends.
+The predicted value at step $i$ is then calculated as $y_{pred} = m i + b$, where
+$i = n, n+1, ..., n+4$ for the next 5 samples. This linear approximation is
+computationally efficient for real-time execution on the service layer while
+providing short-term trends.
+
+\begin{algorithm}[H]
+\caption{AI Insight Generation (tRPC Service)}
+\begin{algorithmic}[1]
+\REQUIRE $V = \{x_1, \dots, x_n\}$ (Telemetry window)
+\STATE \textbf{Anomaly Detection:}
+\STATE $\mu \gets \frac{1}{n} \sum x_i$, $\sigma \gets \sqrt{\frac{1}{n} \sum (x_i - \mu)^2}$
+\FOR{$i = 1$ to $n$}
+    \STATE $Z_i \gets |x_i - \mu| / \sigma$
+    \IF{$Z_i > 2.5$} \STATE flag anomaly \ENDIF
+\ENDFOR
+\STATE \textbf{Linear Forecasting:}
+\STATE Compute $m$ (slope) and $b$ (intercept) using OLS
+\FOR{$i = n$ to $n+4$}
+    \STATE $y_{pred, i} \gets \max(0, m \cdot i + b)$
+\ENDFOR
+\RETURN status, insights, anomalies, forecast
+\end{algorithmic}
+\end{algorithm}
 
 \section{Clinical Interpretation Engine}
 The raw statistical results are synthesized into a clinical status through a rule-based inference engine:
 \begin{itemize}
-    \item \textbf{Stable:} No anomalies detected and forecast slope $|m| < 0.1$.
-    \item \textbf{Warning:} Anomaly detected ($|Z| > 2.0$) or forecast indicates a 10\% deviation within 5 minutes.
-    \item \textbf{Critical:} High-magnitude anomaly ($|Z| > 3.0$) or forecast indicates values crossing the critical clinical limits.
+    \item \textbf{Stable:} No anomalies detected and latest values within baseline bounds.
+    \item \textbf{Warning:} SpO$_2 < 94\%$ or anomaly detected; or heart rate outside 50--110\,BPM.
+    \item \textbf{Critical:} SpO$_2 < 90\%$ or heart rate $> 130$\,BPM.
 \end{itemize}
 
 \begin{figure}[H]
     \centering
-    \fbox{Figure Placeholder: AI Insights UI showing the anomaly status card and the predictive trend chart.}
-    \caption{Visual representation of AI-driven clinical insights.}
-    \label{fig:ai_ui}
+    \includegraphics[width=\linewidth]{AI Pipeline.png}
+    \caption{AI predictive analytics pipeline: from vitals window to status synthesis.}
+    \label{fig:ai_pipeline}
 \end{figure}
+
+The dashboard renders these insights in a dedicated panel, presenting the current clinical status, a narrative interpretation of the vitals trend, and a 5-step forecast overlay on the live telemetry charts.
