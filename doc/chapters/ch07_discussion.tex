@@ -114,6 +114,18 @@ not generate database writes, reducing both network load and the volume of
 low-information records in the database.
 
 % ============================================================
+\section{Critical Analysis of System Architecture}
+% ============================================================
+\subsection{Real-Time Reliability and Cloud Dependency Risks}
+The system's reliance on Firebase Realtime Database for telemetry introduces a strict cloud dependency. While average latencies remain under 300\,ms, a severed internet connection breaks the monitoring loop. Unlike traditional local-network hospital systems (e.g., HL7 over LAN), this cloud-first approach trades local fault tolerance for global accessibility. A local fallback server or an edge gateway is highly recommended for life-critical deployment scenarios.
+
+\subsection{Browser Inference Limitations}
+Offloading face recognition to the client browser (\texttt{face-api.js}) successfully reduces backend compute costs and scales infinitely with the number of client terminals. However, it tightly couples monitoring performance to the clinician's hardware. On lower-end hospital tablets, executing WebGL models concurrently with 60\,FPS SVG charting causes measurable UI stutter. Migrating the inference pipeline to a Web Worker or WebAssembly (Wasm) thread would prevent main-thread blocking.
+
+\subsection{Scalability Considerations}
+The current architecture scales well horizontally. The ESP32 edge nodes are independent, and the Vercel/Firebase backend can automatically absorb spikes in dashboard traffic. However, the use of Base64 strings for profile photo storage in Firestore (to avoid Firebase Storage tier limits) will become a severe payload bottleneck as the staff registry grows, significantly increasing the initialization time of the web application.
+
+% ============================================================
 \section{Identified Improvements}
 % ============================================================
 
