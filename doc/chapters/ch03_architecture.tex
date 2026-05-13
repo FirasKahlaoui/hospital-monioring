@@ -15,6 +15,9 @@ embedded layer, the server layer, the AI layer, and the application layer.
 	\label{fig:global_arch}
 \end{figure}
 
+\section{Architecture Methodology}
+The architecture is derived from the problem analysis in Chapter~2 by mapping each functional requirement to a distinct system layer. Sensor timing constraints motivate a dual-core embedded design, while data governance and access control motivate a cloud service tier. The UI and AI layers are separated to preserve real-time responsiveness in the dashboard while allowing compute-heavy analytics to execute in the service layer.
+
 
 \section{Functional Architecture}
 
@@ -98,9 +101,11 @@ responsibilities.
 
 \begin{table}[H]
 	\centering
+	\small
+	\setlength{\tabcolsep}{4pt}
 	\caption{ESP32 firmware module summary.}
 	\label{tab:sw_modules}
-	\begin{tabularx}{\linewidth}{lllX}
+	\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.22\linewidth} >{\raggedright\arraybackslash}p{0.18\linewidth} X}
 		\toprule
 		\textbf{File}           & \textbf{Context} & \textbf{Responsibility}                                                  \\
 		\midrule
@@ -143,7 +148,7 @@ The service layer is implemented as a \textbf{Node.js} application using the \te
 \end{figure}
 
 \subsection*{Web Dashboard Software}
-The user interface is a single-page application (SPA) built with \textbf{React} and \textbf{Vite}. It leverages the \textbf{Shadcn UI} component library for a modern, responsive clinical aesthetic. The application utilizes a reactive subscription model to the Firebase Realtime Database, ensuring that patient vitals are updated on-screen with sub-second latency. Data visualization is handled by the \textbf{Recharts} library, which renders interactive time-series plots of the patient's physiological trends. Face recognition runs locally in the browser using face-api.js models loaded from a CDN and compares detected descriptors against enrolled identities stored in Firestore.
+The user interface is a single-page application (SPA) built with \textbf{React} and \textbf{Vite}. It leverages the \textbf{Shadcn UI} component library for a modern, responsive clinical aesthetic. The application utilizes a reactive subscription model to the Firebase Realtime Database, ensuring that patient vitals are updated on-screen with sub-second latency. Data visualization is handled by the \textbf{Recharts} library, which renders interactive time-series plots of the patient's physiological trends. Face recognition runs locally in the browser using \texttt{face-api.js} models loaded from a CDN and compares detected descriptors against enrolled identities stored in Firestore.
 
 \subsection*{AI Software}
 The AI insights layer is integrated as a set of tRPC procedures that process windowed telemetry vectors. The system employs \textbf{statistical anomaly detection} using Z-score analysis to identify clinical outliers. For forecasting, the engine applies a \textbf{linear regression model} to project vital sign trends for the subsequent 5 samples (short-horizon trend). This predictive capability allows the dashboard to provide "AI Insights" that warn clinicians of potential instability before standard threshold alerts are triggered.
@@ -174,5 +179,5 @@ The choice of a multi-tier architectural pattern is justified by the heterogeneo
 \begin{itemize}
     \item \textbf{Edge vs. Cloud Processing:} While basic vitals derivation (BPM/SpO2) occurs on the ESP32 to ensure raw signal integrity, higher-level clinical analytics (Z-score, OLS forecasting) are offloaded to the Node.js service layer. This prevents saturating the ESP32's CPU and allows the use of floating-point math and array processing libraries not easily available in embedded C++.
     \item \textbf{Database Hybridization:} The use of two distinct Firebase services (Firestore and RTDB) addresses the conflict between high-frequency telemetry and persistent medical records. RTDB's WebSocket-based push model provides the sub-second latency required for live monitoring, while Firestore's document-oriented structure is better suited for managing complex identities and audit logs.
-    \item \textbf{Browser-Based Inference:} Executing face recognition in the browser using `face-api.js` eliminates the need for expensive GPU-enabled backend servers for video processing. This "edge-of-the-cloud" approach utilizes the end-user terminal's resources, ensuring that the system scales horizontally as more dashboard instances are deployed.
+	\item \textbf{Browser-Based Inference:} Executing face recognition in the browser using \texttt{face-api.js} eliminates the need for expensive GPU-enabled backend servers for video processing. This "edge-of-the-cloud" approach utilizes the end-user terminal's resources, ensuring that the system scales horizontally as more dashboard instances are deployed.
 \end{itemize}

@@ -3,7 +3,7 @@
 \section{Problem Formulation}
 Modern clinical environments face a critical challenge in monitoring patient physiological state while simultaneously tracking authorized and unauthorized personnel movement in restricted hospital rooms. Traditional systems are often siloed, requiring separate platforms for vitals monitoring and access control. This project addresses the need for an integrated, multi-tier solution that provides:
 \begin{enumerate}
-    \item \textbf{Continuous Vitals Acquisition:} Reliable sampling of Heart Rate, SpO2, Temperature, and Humidity at the edge.
+	\item \textbf{Continuous Vitals Acquisition:} Reliable sampling of Heart Rate, SpO\textsubscript{2}, Temperature, and Humidity at the edge.
     \item \textbf{Temporal Isolation:} Ensuring that network-bound cloud uploads do not interfere with time-sensitive physiological sensor sampling.
     \item \textbf{Real-time Clinical Insights:} Moving beyond raw data to provide statistical anomaly detection and short-horizon trend forecasting.
     \item \textbf{Secure Personnel Tracking:} Utilizing browser-based visual inference to identify authorized staff and log unauthorized presence events without dedicated expensive server-side compute.
@@ -25,6 +25,10 @@ The system follows a multi-tier architectural pattern designed for high availabi
     \caption{System context and operational boundaries.}
     \label{fig:system_context}
 \end{figure}
+
+\section{Analytical Methodology}
+
+The preliminary study is structured around requirements tracing and scenario-driven analysis. Use cases are derived from stakeholder interactions (technician setup, clinical monitoring, and administrative oversight), while system constraints are extracted from hardware datasheets, Firebase service limits, and browser execution characteristics. This ensures that the analysis maps directly to implementable features without introducing speculative capabilities.
 
 \section{Use Cases}
 
@@ -76,17 +80,17 @@ The following operational scenarios define the expected system behaviour.
 \begin{algorithmic}[1]
 \STATE \textbf{Input:} $vitals\_window$
 \IF{\textbf{length}($vitals\_window$) $< 5$}
-    \RETURN \text{Insufficient data}
+	\STATE \textbf{Return:} Insufficient data
 \ENDIF
 \STATE $mean \gets$ \textbf{average}($vitals\_window$)
 \STATE $std\_dev \gets$ \textbf{standard\_deviation}($vitals\_window$)
 \STATE $z\_score \gets \frac{\text{latest\_vital} - mean}{std\_dev}$
 \IF{$z\_score > threshold\_critical$}
-    \RETURN \text{Critical Anomaly}
+	\STATE \textbf{Return:} Critical Anomaly
 \ELSIF{$z\_score > threshold\_warning$}
-    \RETURN \text{Warning Anomaly}
+	\STATE \textbf{Return:} Warning Anomaly
 \ELSE
-    \RETURN \text{Stable}
+	\STATE \textbf{Return:} Stable
 \ENDIF
 \end{algorithmic}
 \end{algorithm}
@@ -186,3 +190,7 @@ and \texttt{/rooms/\{roomId\}}, and mirrors detection/alert logs under
 \texttt{/detectionEvents/\{userId\}} and \texttt{/alertLogs/\{userId\}} for
 real-time client subscription. A base64 storage fallback is used for face
 photos when Firebase Storage is not available.
+
+\section{Critical Analysis}
+
+The analysis highlights two principal system trade-offs. First, the architecture depends on Wi-Fi stability and cloud responsiveness; therefore, robustness is achieved through reconnection logic and temporal isolation rather than offline buffering. Second, the choice of browser-based face recognition reduces server cost and complexity but shifts performance constraints to the client device. These trade-offs are acceptable for the current prototype, yet they frame the validation priorities discussed in Chapter~6.

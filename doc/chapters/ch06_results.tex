@@ -126,6 +126,21 @@ This decoupled timing ensures that visual processing (which is computationally e
     \label{fig:esp32_flow}
 \end{figure}
 
+\subsection{Theoretical Model vs.\ Observed System Behaviour}
+
+The latency model defined in Chapter~4 (Equation~\ref{eq:latency}) provides a framework
+for expected end-to-end latency. Empirical validation is required to quantify RTT
+and TLS overhead in the deployment environment.
+
+The delta-threshold filter is expected to suppress redundant uploads during
+steady-state monitoring (constant vitals). Quantifying the reduction in write
+volume requires a controlled test that logs raw and filtered streams.
+
+The AI forecasting model, based on OLS linear regression over a short window,
+assumes near-linear short-term dynamics. This assumption is appropriate for
+stable resting conditions but is expected to degrade during rapid transitions.
+Future work should quantify this effect with controlled datasets.
+
 % ============================================================
 \section{Comparison: Design Specification vs.\ Observed Behaviour}
 % ============================================================
@@ -198,7 +213,7 @@ Once a face is recognized against the pre-enrolled profiles stored within the da
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=180pt]{persons_in_room_dashboard.png}
+	\includegraphics[width=190pt]{persons_in_room_dashboard.png}
     \caption{Dashboard recognizing enrolled users and logging them in the authorized personnel list.}
     \label{fig:persons_in_room}
 \end{figure}
@@ -212,17 +227,6 @@ Simultaneously, the detection of an unknown or unauthorized individual triggers 
     \label{fig:unknown_person_mail}
 \end{figure}
 
-framework for expected end-to-end latency. Empirical validation is required to
-quantify RTT and TLS overhead in the deployment environment.
-
-The delta-threshold filter is expected to suppress redundant uploads during
-steady-state monitoring (constant vitals). Quantifying the reduction in write
-volume requires a controlled test that logs raw and filtered streams.
-
-The AI forecasting model, based on OLS linear regression over a short window,
-assumes near-linear short-term dynamics. This assumption is appropriate for
-stable resting conditions but is expected to degrade during rapid transitions.
-Future work should quantify this effect with controlled datasets.
 
 % ============================================================
 \section{Error Analysis}

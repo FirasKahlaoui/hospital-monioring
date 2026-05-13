@@ -10,9 +10,11 @@
 The firmware maps the software architecture described in
 Chapter~\ref{ch:architecture} directly onto the ESP32's dual-core execution model.
 At boot, \texttt{setup()} initialises LittleFS, loads NVS configuration, initialises the sensors, starts
-both Wi-Fi interfaces, registers HTTP routes, and launches the Firebase FreeRTOS task .
+both Wi-Fi interfaces, registers HTTP routes, and launches the Firebase FreeRTOS task.
 After \texttt{setup()} returns, the Arduino \texttt{loop()} continues to execute, calling \texttt{updateSensors()} on every iteration and scheduling periodic
 Wi-Fi background scans.
+
+Implementation choices in this chapter are traced directly to the architectural decomposition in Chapter~\ref{ch:architecture}, ensuring that each subsystem is implemented against the constraints and interfaces established in the design phase.
 
 The \textbf{Backend Subsystem} is implemented as a Node.js service that acts as a secure proxy between the clinical dashboard and the Firebase infrastructure. It consumes data from Firestore for administrative operations and stores detection/alert logs. The server is initialized via a tRPC router which binds the service logic to the network layer, ensuring that every API call is strictly validated against the project's TypeScript interfaces. Authentication uses Firebase ID tokens at login and persists sessions via signed cookies.
 
@@ -144,7 +146,7 @@ Firebase Storage is unavailable. This keeps the feature functional without a
 paid storage plan but increases payload sizes in the database and client.
 
 \subsection{Web Dashboard Implementation}
-The dashboard's core is the \textbf{Real-time Monitoring Component}, which uses a custom hook to manage the Firebase RTDB listener lifecycle. Vitals are visualized using \textbf{AreaCharts} from Recharts, optimized for high-frequency updates without UI stutter. A secondary \textbf{AI Insights Panel} renders synthesized clinical conclusions by subscribing to the tRPC AI results. The personnel tracking system is implemented via a browser-based face-api.js pipeline, executing detection every 600\,ms and applying a 5-frame stability threshold before logging alerts.
+The dashboard's core is the \textbf{Real-time Monitoring Component}, which uses a custom hook to manage the Firebase RTDB listener lifecycle. Vitals are visualized using \textbf{AreaCharts} from Recharts, optimized for high-frequency updates without UI stutter. A secondary \textbf{AI Insights Panel} renders synthesized clinical conclusions by subscribing to the tRPC AI results. The personnel tracking system is implemented via a browser-based \texttt{face-api.js} pipeline, executing detection every 600\,ms and applying a 5-frame stability threshold before logging alerts.
 
 \begin{figure}[H]
     \centering
