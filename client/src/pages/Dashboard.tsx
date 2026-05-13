@@ -132,7 +132,6 @@ export default function Dashboard() {
     const recipients = [doctor?.email, nurse?.email].filter(Boolean) as string[];
 
     if (recipients.length === 0) {
-      console.warn("[Dashboard] No assigned staff with email found for patient:", selectedPatient.name);
       return;
     }
 
@@ -238,14 +237,11 @@ Please check the monitoring dashboard immediately.
   // Prepare the dataset of known faces and their descriptors
   const { knownPeople, enrolledDescriptors } = useMemo(() => {
     if (!people) {
-      console.log("[Dashboard] People query returned no data yet");
       return { knownPeople: [], enrolledDescriptors: [] };
     }
 
     const kp: typeof people = [];
     const ed: Float32Array[] = [];
-
-    console.log(`[Dashboard] Processing ${people.length} total people for recognition...`);
 
     people.forEach(p => {
       const desc = p.enrolledFaceDescriptor;
@@ -288,18 +284,15 @@ Please check the monitoring dashboard immediately.
           }
         }
       } catch (e) {
-        console.error(`[Dashboard] Failed to parse descriptor for ${p.name}:`, e);
       }
 
       if (descriptor && descriptor.length === 128) {
         kp.push(p);
         ed.push(descriptor);
       } else if (descriptor) {
-        console.warn(`[Dashboard] Person ${p.name} has invalid descriptor length: ${descriptor.length}`);
       }
     });
 
-    console.log(`[Dashboard] Successfully loaded ${kp.length} identities into neural engine`);
     return { knownPeople: kp, enrolledDescriptors: ed };
   }, [people]);
 
@@ -402,7 +395,6 @@ Please check the monitoring dashboard immediately.
         setRoomLogs([]);
       }
     }, (error) => {
-      console.error("Room Subscription Error:", error);
     });
 
     return () => {
@@ -767,7 +759,6 @@ Please check the monitoring dashboard immediately.
           Array.from(roomOccupantsRef.current.values()).sort((a, b) => b.lastSeen.getTime() - a.lastSeen.getTime())
         );
       } catch (err) {
-        console.error("Detection error:", err);
       } finally {
         setIsProcessing(false);
       }
